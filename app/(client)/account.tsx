@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'expo-router';
 import { User, Moon, Sun, LogOut, CreditCard as Edit, Settings } from 'lucide-react-native';
-import { Redirect } from 'expo-router';
 
 export default function ClientAccount() {
   const { colors, isDark, toggleTheme } = useTheme();
   const { userProfile, signOut } = useAuth();
+  const router = useRouter();
 
   const styles = createStyles(colors);
 
@@ -43,7 +44,10 @@ export default function ClientAccount() {
             </View>
           </View>
           
-          <TouchableOpacity style={styles.editProfileButton}>
+          <TouchableOpacity 
+            style={styles.editProfileButton}
+            onPress={() => router.push('/(client)/edit-profile')}
+          >
             <Edit color={colors.textSecondary} size={20} />
           </TouchableOpacity>
         </View>

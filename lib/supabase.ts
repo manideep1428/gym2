@@ -1,10 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
-
-const supabaseUrl = 'https://tkmfroaywhdwsarnaecj.supabase.co'
+const supabaseUrl = "https://tkmfroaywhdwsarnaecj.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrbWZyb2F5d2hkd3Nhcm5hZWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTIyNjAsImV4cCI6MjA3MDU2ODI2MH0.9s0NP7mu5GKtsc1ELq6Le3fpNYCgYo2O-Ixad9_YDMY"
+
+// Validate configuration
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase configuration. Please check your environment variables.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
@@ -12,6 +15,19 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'gymbook-app',
+    },
+  },
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 2,
+    },
   },
 });
 
@@ -26,6 +42,7 @@ export interface Profile {
   bio?: string;
   specializations?: string[];
   experience_years?: number;
+  fitness_goals?: string;
   rating?: number;
   total_reviews?: number;
   created_at: string;

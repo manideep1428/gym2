@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile, TrainingPackage } from '@/lib/supabase';
 import { Search, Star, MapPin, Calendar, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { ClientDashboardSkeleton } from '@/components/SkeletonLoader';
 
 export default function ClientHome() {
   const { colors } = useTheme();

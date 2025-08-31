@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Calendar, Users, DollarSign, TrendingUp, Clock, Package2 } from 'lucide-react-native';
+import { Calendar, Users, DollarSign, TrendingUp, Clock, Package2, Edit } from 'lucide-react-native';
+import { TrainerDashboardSkeleton } from '@/components/SkeletonLoader';
 
 interface DashboardStats {
   totalBookings: number;
@@ -16,6 +18,7 @@ interface DashboardStats {
 export default function TrainerDashboard() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats>({
     totalBookings: 0,
     todayBookings: 0,
@@ -44,7 +47,7 @@ export default function TrainerDashboard() {
 
       const today = new Date().toISOString().split('T')[0];
       const todayBookings = bookingsData?.filter(b => b.date === today) || [];
-      
+
       // Fetch unique clients
       const uniqueClients = new Set(bookingsData?.map(b => b.client_id) || []);
 
@@ -91,15 +94,19 @@ export default function TrainerDashboard() {
     });
   };
 
-  const StatCard = ({ icon, title, value, subtitle, color }: any) => (
-    <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+  const StatCard = ({ icon, title, value, subtitle, color, onPress }: any) => (
+    <TouchableOpacity 
+      style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
         {icon}
       </View>
       <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
       <Text style={[styles.statTitle, { color: colors.text }]}>{title}</Text>
       {subtitle && <Text style={[styles.statSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -129,18 +136,21 @@ export default function TrainerDashboard() {
             title="Today's Sessions"
             value={stats.todayBookings}
             color={colors.primary}
+            onPress={() => router.push('/(trainer)/bookings')}
           />
           <StatCard
             icon={<Users color={colors.success} size={24} />}
             title="Total Clients"
             value={stats.totalClients}
             color={colors.success}
+            onPress={() => router.push('/(trainer)/clients')}
           />
           <StatCard
             icon={<TrendingUp color={colors.warning} size={24} />}
             title="Total Bookings"
             value={stats.totalBookings}
             color={colors.warning}
+            onPress={() => router.push('/(trainer)/bookings')}
           />
           <StatCard
             icon={<DollarSign color={colors.error} size={24} />}
@@ -148,13 +158,14 @@ export default function TrainerDashboard() {
             value={stats.pendingPayments}
             subtitle={`$${stats.monthlyRevenue}`}
             color={colors.error}
+            onPress={() => router.push('/(trainer)/payments')}
           />
         </View>
 
         {/* Recent Bookings */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Bookings</Text>
-          
+
           {recentBookings.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Calendar color={colors.textSecondary} size={32} />
@@ -165,6 +176,7 @@ export default function TrainerDashboard() {
               <TouchableOpacity
                 key={booking.id}
                 style={[styles.bookingCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => router.push('/(trainer)/bookings')}
               >
                 <View style={styles.bookingInfo}>
                   <Text style={[styles.clientName, { color: colors.text }]}>{booking.client.name}</Text>
@@ -172,7 +184,7 @@ export default function TrainerDashboard() {
                     {formatDate(booking.date)} • {formatTime(booking.start_time)}
                   </Text>
                 </View>
-                
+
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
                   <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
                     {booking.status}
@@ -186,26 +198,46 @@ export default function TrainerDashboard() {
         {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
-          
+
           <View style={styles.actionsGrid}>
-            <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TouchableOpacity 
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/(trainer)/availability')}
+            >
               <Clock color={colors.primary} size={24} />
               <Text style={[styles.actionText, { color: colors.text }]}>Set Availability</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+
+            <TouchableOpacity 
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/(trainer)/packages')}
+            >
               <Package2 color={colors.primary} size={24} />
               <Text style={[styles.actionText, { color: colors.text }]}>Create Package</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+
+            <TouchableOpacity 
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/(trainer)/payments')}
+            >
               <DollarSign color={colors.primary} size={24} />
               <Text style={[styles.actionText, { color: colors.text }]}>Request Payment</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+
+            <TouchableOpacity 
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/(trainer)/clients')}
+            >
               <Users color={colors.primary} size={24} />
               <Text style={[styles.actionText, { color: colors.text }]}>View Clients</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/(trainer)/edit-profile')}
+            >
+              <Edit color={colors.primary} size={24} />
+              <Text style={[styles.actionText, { color: colors.text }]}>Edit Profile</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -348,7 +380,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   actionCard: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: '30%',
+    maxWidth: '48%',
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,

@@ -43,7 +43,10 @@ export default function TrainerSettings() {
             </View>
           </View>
           
-          <TouchableOpacity style={styles.editProfileButton}>
+          <TouchableOpacity 
+            style={styles.editProfileButton}
+            onPress={() => router.push('/(trainer)/edit-profile')}
+          >
             <Edit color={colors.textSecondary} size={20} />
           </TouchableOpacity>
         </View>
@@ -83,33 +86,10 @@ export default function TrainerSettings() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Edit color={colors.textSecondary} size={20} />
-              <Text style={[styles.settingText, { color: colors.text }]}>Edit Profile</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Bell color={colors.textSecondary} size={20} />
-              <Text style={[styles.settingText, { color: colors.text }]}>Notification Settings</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Shield color={colors.textSecondary} size={20} />
-              <Text style={[styles.settingText, { color: colors.text }]}>Privacy & Security</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Business Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Business</Text>
-          
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity 
+            style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push('/(trainer)/edit-profile')}
+          >
             <View style={styles.settingInfo}>
               <Edit color={colors.textSecondary} size={20} />
               <Text style={[styles.settingText, { color: colors.text }]}>Edit Profile</Text>

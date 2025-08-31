@@ -4,6 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Booking, Profile } from '@/lib/supabase';
 import { Calendar, Clock, User, MapPin } from 'lucide-react-native';
+import { ClientBookingsSkeleton } from '@/components/SkeletonLoader';
 
 export default function ClientBookings() {
   const { colors } = useTheme();

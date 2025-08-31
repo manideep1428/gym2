@@ -1,39 +1,15 @@
 {
   "expo": {
-    "name": "GymBook - Trainer & Client App",
-    "slug": "gymbook-app",
+    "name": "bolt-expo-nativewind",
+    "slug": "gymupdated",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.jpg",
-    "scheme": "gymbook",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.gymbook.app"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.gymbook.app",
-      "versionCode": 1,
-      "permissions": [
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+      "supportsTablet": true
     },
     "web": {
       "bundler": "metro",
@@ -54,6 +30,9 @@
         "projectId": "e84f748a-c373-4c8c-8439-e59169869bf8"
       }
     },
-    "owner": "manideep1428"
+    "owner": "manideep1428",
+    "android": {
+      "package": "com.manideep1428.gymupdated"
+    }
   }
 }

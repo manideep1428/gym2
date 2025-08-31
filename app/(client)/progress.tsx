@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Modal } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { TrendingUp, Camera, Plus, CreditCard as Edit3 } from 'lucide-react-native';
+import { TrendingUp, Camera, Plus, X } from 'lucide-react-native';
 
 interface ProgressEntry {
   id: string;

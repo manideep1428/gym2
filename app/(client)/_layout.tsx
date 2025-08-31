@@ -1,9 +1,14 @@
 import { Tabs } from 'expo-router';
 import { House, Calendar, Package, TrendingUp, User, Bell } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useDeviceInfo, getAdaptiveTabBarStyle, getAdaptiveIconSize, getAdaptiveFontSize } from '@/utils/deviceUtils';
 
 export default function ClientTabLayout() {
   const { colors } = useTheme();
+  const deviceInfo = useDeviceInfo();
+  const adaptiveStyle = getAdaptiveTabBarStyle(deviceInfo);
+  const iconSize = getAdaptiveIconSize(adaptiveStyle.height);
+  const fontSize = getAdaptiveFontSize(adaptiveStyle.height);
 
   return (
     <Tabs
@@ -14,13 +19,25 @@ export default function ClientTabLayout() {
         tabBarStyle: {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 80,
+          borderTopWidth: 1,
+          paddingBottom: adaptiveStyle.paddingBottom,
+          paddingTop: adaptiveStyle.paddingTop,
+          height: adaptiveStyle.height,
+          marginBottom: adaptiveStyle.marginBottom,
+          // Add shadow for better separation
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: fontSize,
           fontWeight: '500',
+          marginTop: 2,
+        },
+        tabBarIconStyle: {
+          marginTop: 4,
         },
       }}
     >
@@ -28,28 +45,28 @@ export default function ClientTabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <House color={color} size={size} />,
+          tabBarIcon: ({ color }) => <House color={color} size={iconSize} />,
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
           title: 'Bookings',
-          tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} />,
+          tabBarIcon: ({ color }) => <Calendar color={color} size={iconSize} />,
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
           title: 'Notifications',
-          tabBarIcon: ({ color, size }) => <Bell color={color} size={size} />,
+          tabBarIcon: ({ color }) => <Bell color={color} size={iconSize} />,
         }}
       />
       <Tabs.Screen
         name="packages"
         options={{
           title: 'Packages',
-          tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
+          tabBarIcon: ({ color }) => <Package color={color} size={iconSize} />,
         }}
       />
       <Tabs.Screen
@@ -59,17 +76,23 @@ export default function ClientTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="edit-profile"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
         name="progress"
         options={{
           title: 'Progress',
-          tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} />,
+          tabBarIcon: ({ color }) => <TrendingUp color={color} size={iconSize} />,
         }}
       />
       <Tabs.Screen
         name="account"
         options={{
           title: 'Account',
-          tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
+          tabBarIcon: ({ color }) => <User color={color} size={iconSize} />,
         }}
       />
     </Tabs>
