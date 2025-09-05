@@ -19,7 +19,7 @@ interface ThemeContextType {
 }
 
 const lightTheme = {
-  primary: '#D97757',
+  primary: '#3C9BEE',
   background: '#FFFFFF',
   surface: '#F8F9FA',
   text: '#333333',
@@ -32,8 +32,8 @@ const lightTheme = {
 };
 
 const darkTheme = {
-  primary: '#D97757',
-  background: '#252624',
+  primary: '#3C9BEE',
+  background: '#000000',
   surface: '#1F201E',
   text: '#FFFFFF',
   textSecondary: '#CCCCCC',

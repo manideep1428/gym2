@@ -198,7 +198,8 @@ export default function ClientNotifications() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 50,
+    paddingTop: 60,
+    marginTop: -20,
   },
   centered: {
     justifyContent: 'center',

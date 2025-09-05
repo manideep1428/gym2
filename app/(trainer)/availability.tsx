@@ -20,7 +20,7 @@ export default function TrainerAvailabilityScreen() {
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'calendar' | 'weekly'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'weekly' | 'grid'>('grid');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (message: string) => {
@@ -40,18 +40,20 @@ export default function TrainerAvailabilityScreen() {
     { name: 'Full Day', icon: Clock, start: '08:00', end: '20:00', color: '#007AFF' },
   ];
 
-  const styles = createStyles(colors);
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const shortDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   useEffect(() => {
-    fetchAvailability();
-  }, []);
+    if (userProfile) {
+      fetchAvailability();
+    }
+  }, [userProfile]);
 
   const fetchAvailability = async () => {
     if (!userProfile) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('trainer_availability')
         .select('*')
@@ -63,10 +65,67 @@ export default function TrainerAvailabilityScreen() {
       setAvailability(data || []);
     } catch (error) {
       console.error('Error fetching availability:', error);
+      showToast('Failed to load availability');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleToggleSlot = async (dayOfWeek: number, timeSlot: string) => {
+    if (!userProfile) return;
+
+    const [hours, minutes] = timeSlot.split(':');
+    const slotTime = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00`;
+    const nextHour = new Date(`2000-01-01T${slotTime}`);
+    nextHour.setHours(nextHour.getHours() + 1);
+    const endTimeFormatted = nextHour.toTimeString().slice(0, 8);
+
+    // Check if this slot already exists
+    const existingSlot = availability.find(slot =>
+      slot.day_of_week === dayOfWeek &&
+      slot.start_time === slotTime &&
+      slot.is_recurring
+    );
+
+    try {
+      if (existingSlot) {
+        // Remove the slot
+        const { error } = await supabase
+          .from('trainer_availability')
+          .delete()
+          .eq('id', existingSlot.id);
+
+        if (error) throw error;
+        showToast('Availability removed');
+      } else {
+        // Add the slot
+        const { error } = await supabase
+          .from('trainer_availability')
+          .insert({
+            trainer_id: userProfile.id,
+            day_of_week: dayOfWeek,
+            start_time: slotTime,
+            end_time: endTimeFormatted,
+            is_recurring: true,
+          });
+
+        if (error) throw error;
+        showToast('Availability added');
+      }
+      await fetchAvailability();
+    } catch (error) {
+      console.error('Toggle slot error:', error);
+      showToast('Failed to update availability');
+    }
+  };
+
+  const groupedAvailability = availability.reduce((acc, slot) => {
+    if (!acc[slot.day_of_week]) {
+      acc[slot.day_of_week] = [];
+    }
+    acc[slot.day_of_week].push(slot);
+    return acc;
+  }, {} as Record<number, TrainerAvailability[]>);
 
   const addAvailability = async () => {
     if (!userProfile) return;
@@ -83,8 +142,8 @@ export default function TrainerAvailabilityScreen() {
         .insert({
           trainer_id: userProfile.id,
           day_of_week: selectedDay,
-          start_time: startTime,
-          end_time: endTime,
+          start_time: startTime + ':00',
+          end_time: endTime + ':00',
           is_recurring: true,
         });
 
@@ -93,7 +152,7 @@ export default function TrainerAvailabilityScreen() {
       showToast('Availability added');
       setShowAddModal(false);
       resetModalState();
-      fetchAvailability();
+      await fetchAvailability();
     } catch (error) {
       showToast('Failed to add availability');
       console.error('Add availability error:', error);
@@ -148,17 +207,27 @@ export default function TrainerAvailabilityScreen() {
         supabase.from('trainer_availability').insert({
           trainer_id: userProfile.id,
           day_of_week: day,
-          start_time: start,
-          end_time: end,
+          start_time: start + ':00',
+          end_time: end + ':00',
           is_recurring: true,
         })
       );
 
-      await Promise.all(promises);
-      showToast('Weekday schedule added');
-      fetchAvailability();
+      const results = await Promise.allSettled(promises);
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+      
+      if (failedCount === 0) {
+        showToast('Weekday schedule added');
+      } else if (failedCount < weekdays.length) {
+        showToast('Partial weekday schedule added');
+      } else {
+        showToast('Failed to setup schedule');
+      }
+      
+      await fetchAvailability();
     } catch (error) {
       showToast('Failed to setup schedule');
+      console.error('Setup weekday error:', error);
     }
   };
 
@@ -172,17 +241,25 @@ export default function TrainerAvailabilityScreen() {
         supabase.from('trainer_availability').insert({
           trainer_id: userProfile.id,
           day_of_week: day,
-          start_time: start,
-          end_time: end,
+          start_time: start + ':00',
+          end_time: end + ':00',
           is_recurring: true,
         })
       );
 
-      await Promise.all(promises);
-      showToast('Weekend schedule added');
-      fetchAvailability();
+      const results = await Promise.allSettled(promises);
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+      
+      if (failedCount === 0) {
+        showToast('Weekend schedule added');
+      } else {
+        showToast('Failed to setup schedule');
+      }
+      
+      await fetchAvailability();
     } catch (error) {
       showToast('Failed to setup schedule');
+      console.error('Setup weekend error:', error);
     }
   };
 
@@ -203,8 +280,10 @@ export default function TrainerAvailabilityScreen() {
                 .eq('id', id);
 
               if (error) throw error;
-              fetchAvailability();
+              showToast('Availability deleted');
+              await fetchAvailability();
             } catch (error) {
+              console.error('Delete error:', error);
               showToast('Failed to delete availability');
             }
           },
@@ -214,11 +293,16 @@ export default function TrainerAvailabilityScreen() {
   };
 
   const formatTime = (time: string) => {
-    return new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
+    try {
+      const timeStr = time.length === 5 ? time + ':00' : time;
+      return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch (error) {
+      return time; // fallback to original time if formatting fails
+    }
   };
 
   const generateCalendarDates = () => {
@@ -226,7 +310,6 @@ export default function TrainerAvailabilityScreen() {
     const month = currentDate.getMonth();
 
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
 
@@ -255,17 +338,485 @@ export default function TrainerAvailabilityScreen() {
     setCurrentDate(newDate);
   };
 
-  const groupedAvailability = availability.reduce((acc, slot) => {
-    if (!acc[slot.day_of_week]) {
-      acc[slot.day_of_week] = [];
-    }
-    acc[slot.day_of_week].push(slot);
-    return acc;
-  }, {} as Record<number, TrainerAvailability[]>);
+  // Create styles here to access colors
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      paddingTop: 50,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      marginBottom: 20,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    quickSetupButton: {
+      borderWidth: 1,
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    quickSetupText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.primary,
+    },
+    addButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+    },
+    viewToggle: {
+      flexDirection: 'row',
+      marginHorizontal: 20,
+      marginBottom: 20,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      padding: 4,
+    },
+    toggleButton: {
+      flex: 1,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 6,
+      alignItems: 'center',
+      borderWidth: 1,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    toggleButtonActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    toggleText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    toggleTextActive: {
+      color: '#FFFFFF',
+    },
+    helperSection: {
+      marginHorizontal: 20,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 16,
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+    },
+    helperTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 4,
+      color: colors.text,
+    },
+    helperText: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: 20,
+    },
+    // Calendar styles
+    calendarView: {
+      flex: 1,
+    },
+    calendarHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingHorizontal: 10,
+    },
+    monthYear: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    calendarDaysHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginBottom: 10,
+    },
+    dayHeader: {
+      fontSize: 12,
+      fontWeight: '500',
+      width: 40,
+      textAlign: 'center',
+      color: colors.textSecondary,
+    },
+    calendarGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-around',
+    },
+    calendarDate: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: 'transparent',
+      position: 'relative',
+      backgroundColor: colors.surface,
+    },
+    calendarDateText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    availabilityDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      position: 'absolute',
+      bottom: 4,
+      backgroundColor: colors.primary,
+    },
+    legend: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 20,
+      marginTop: 20,
+    },
+    legendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    legendDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+    },
+    legendText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    // Weekly view styles
+    weeklyView: {
+      flex: 1,
+    },
+    daySection: {
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+    },
+    daySectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    dayName: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    addDayButton: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+    },
+    timeSlot: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      marginBottom: 8,
+      backgroundColor: colors.primary + '10',
+      borderColor: colors.primary + '30',
+    },
+    timeInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    timeText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    deleteButton: {
+      padding: 8,
+      borderRadius: 6,
+      backgroundColor: colors.error + '10',
+    },
+    emptyState: {
+      alignItems: 'center',
+      paddingVertical: 20,
+      gap: 8,
+    },
+    noAvailability: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    emptyStateHint: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    // Modal styles
+    modalContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 60,
+      paddingBottom: 20,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    modalContent: {
+      flex: 1,
+      paddingHorizontal: 20,
+    },
+    selectedDateCard: {
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+    },
+    selectedDateText: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    formSection: {
+      marginBottom: 24,
+    },
+    formLabel: {
+      fontSize: 16,
+      fontWeight: '500',
+      marginBottom: 12,
+      color: colors.text,
+    },
+    daySelector: {
+      flexDirection: 'row',
+    },
+    dayOption: {
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      marginRight: 8,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    dayOptionActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary + '20',
+    },
+    dayOptionText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    dayOptionTextActive: {
+      color: colors.primary,
+    },
+    presetsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    presetButton: {
+      flex: 1,
+      minWidth: '45%',
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    presetName: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    presetTime: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    timeInputs: {
+      flexDirection: 'row',
+      gap: 16,
+    },
+    timeInput: {
+      flex: 1,
+    },
+    timeLabel: {
+      fontSize: 12,
+      marginBottom: 8,
+      color: colors.textSecondary,
+    },
+    timeButton: {
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    timeButtonText: {
+      fontSize: 16,
+      color: colors.text,
+    },
+    timeHint: {
+      fontSize: 12,
+      marginTop: 8,
+      textAlign: 'center',
+      fontStyle: 'italic',
+      color: colors.textSecondary,
+    },
+    submitButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 16,
+      borderRadius: 12,
+      marginTop: 20,
+      backgroundColor: colors.primary,
+    },
+    submitButtonText: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    toast: {
+      position: 'absolute',
+      bottom: 24,
+      left: 20,
+      right: 20,
+      borderWidth: 1,
+      borderRadius: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+    },
+    toastText: {
+      color: colors.text,
+    },
+    // Grid styles
+    gridView: {
+      flex: 1,
+    },
+    gridContainer: {
+      flex: 1,
+    },
+    gridHeader: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      paddingVertical: 12,
+    },
+    timeHeaderCell: {
+      width: 80,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 8,
+    },
+    dayHeaderCell: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+    },
+    headerText: {
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    gridRow: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      minHeight: 50,
+    },
+    timeCell: {
+      width: 80,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 8,
+    },
+    gridTimeText: {
+      fontSize: 10,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    slotCell: {
+      flex: 1,
+      minHeight: 50,
+      borderWidth: 1,
+      borderLeftWidth: 0.5,
+      borderRightWidth: 0.5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    slotCellAvailable: {
+      backgroundColor: colors.primary + '40',
+      borderColor: colors.primary,
+    },
+    availableIndicator: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      position: 'absolute',
+      backgroundColor: colors.primary,
+    },
+  });
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={styles.container}> 
         <View style={styles.header}> 
           <SkeletonLoader width={160} height={20} borderRadius={6} />
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -293,21 +844,21 @@ export default function TrainerAvailabilityScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <ChevronLeft color={colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Availability</Text>
+        <Text style={styles.title}>Availability</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[styles.quickSetupButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => showQuickSetupOptions()}
+            style={styles.quickSetupButton}
+            onPress={showQuickSetupOptions}
           >
-            <Text style={[styles.quickSetupText, { color: colors.primary }]}>Quick Setup</Text>
+            <Text style={styles.quickSetupText}>Quick Setup</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            style={styles.addButton}
             onPress={() => setShowAddModal(true)}
           >
             <Plus color="#FFFFFF" size={20} />
@@ -320,14 +871,27 @@ export default function TrainerAvailabilityScreen() {
         <TouchableOpacity
           style={[
             styles.toggleButton,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-            viewMode === 'calendar' && { backgroundColor: colors.primary, borderColor: colors.primary }
+            viewMode === 'grid' && styles.toggleButtonActive
+          ]}
+          onPress={() => setViewMode('grid')}
+        >
+          <Text style={[
+            styles.toggleText,
+            viewMode === 'grid' && styles.toggleTextActive
+          ]}>
+            Grid
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.toggleButton,
+            viewMode === 'calendar' && styles.toggleButtonActive
           ]}
           onPress={() => setViewMode('calendar')}
         >
           <Text style={[
             styles.toggleText,
-            { color: viewMode === 'calendar' ? '#FFFFFF' : colors.text }
+            viewMode === 'calendar' && styles.toggleTextActive
           ]}>
             Calendar
           </Text>
@@ -335,14 +899,13 @@ export default function TrainerAvailabilityScreen() {
         <TouchableOpacity
           style={[
             styles.toggleButton,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-            viewMode === 'weekly' && { backgroundColor: colors.primary, borderColor: colors.primary }
+            viewMode === 'weekly' && styles.toggleButtonActive
           ]}
           onPress={() => setViewMode('weekly')}
         >
           <Text style={[
             styles.toggleText,
-            { color: viewMode === 'weekly' ? '#FFFFFF' : colors.text }
+            viewMode === 'weekly' && styles.toggleTextActive
           ]}>
             Weekly
           </Text>
@@ -350,10 +913,12 @@ export default function TrainerAvailabilityScreen() {
       </View>
 
       {/* Helper Section */}
-      <View style={[styles.helperSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.helperTitle, { color: colors.text }]}>Set Your Available Hours</Text>
-        <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-          {viewMode === 'calendar'
+      <View style={styles.helperSection}>
+        <Text style={styles.helperTitle}>Set Your Available Hours</Text>
+        <Text style={styles.helperText}>
+          {viewMode === 'grid'
+            ? 'Click time slots to toggle availability. Blue slots are available, gray are unavailable.'
+            : viewMode === 'calendar'
             ? 'Tap any date to add availability. Blue dots show days you\'re available.'
             : 'Use the + button to add time slots for each day of the week.'
           }
@@ -361,14 +926,21 @@ export default function TrainerAvailabilityScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        {viewMode === 'calendar' ? (
+        {viewMode === 'grid' ? (
+          <WeeklyAvailabilityGrid
+            availability={availability}
+            onToggleSlot={handleToggleSlot}
+            colors={colors}
+            styles={styles}
+          />
+        ) : viewMode === 'calendar' ? (
           <View style={styles.calendarView}>
             {/* Calendar Header */}
             <View style={styles.calendarHeader}>
               <TouchableOpacity onPress={() => navigateMonth('prev')}>
                 <ChevronLeft color={colors.text} size={20} />
               </TouchableOpacity>
-              <Text style={[styles.monthYear, { color: colors.text }]}>
+              <Text style={styles.monthYear}>
                 {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
               <TouchableOpacity onPress={() => navigateMonth('next')}>
@@ -379,7 +951,7 @@ export default function TrainerAvailabilityScreen() {
             {/* Calendar Days Header */}
             <View style={styles.calendarDaysHeader}>
               {shortDayNames.map((day) => (
-                <Text key={day} style={[styles.dayHeader, { color: colors.textSecondary }]}>
+                <Text key={day} style={styles.dayHeader}>
                   {day}
                 </Text>
               ))}
@@ -398,9 +970,11 @@ export default function TrainerAvailabilityScreen() {
                     key={index}
                     style={[
                       styles.calendarDate,
-                      { backgroundColor: colors.surface },
                       !isCurrentMonth && { opacity: 0.3 },
-                      hasAvailability && { backgroundColor: colors.primary + '20', borderColor: colors.primary },
+                      hasAvailability && { 
+                        backgroundColor: colors.primary + '20', 
+                        borderColor: colors.primary 
+                      },
                       isToday && { borderColor: colors.primary, borderWidth: 2 }
                     ]}
                     onPress={() => {
@@ -411,13 +985,13 @@ export default function TrainerAvailabilityScreen() {
                   >
                     <Text style={[
                       styles.calendarDateText,
-                      { color: isCurrentMonth ? colors.text : colors.textSecondary },
+                      !isCurrentMonth && { color: colors.textSecondary },
                       hasAvailability && { color: colors.primary, fontWeight: '600' }
                     ]}>
                       {date.getDate()}
                     </Text>
                     {hasAvailability && (
-                      <View style={[styles.availabilityDot, { backgroundColor: colors.primary }]} />
+                      <View style={styles.availabilityDot} />
                     )}
                   </TouchableOpacity>
                 );
@@ -428,22 +1002,22 @@ export default function TrainerAvailabilityScreen() {
             <View style={styles.legend}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-                <Text style={[styles.legendText, { color: colors.textSecondary }]}>Available</Text>
+                <Text style={styles.legendText}>Available</Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: colors.border }]} />
-                <Text style={[styles.legendText, { color: colors.textSecondary }]}>Not set</Text>
+                <Text style={styles.legendText}>Not set</Text>
               </View>
             </View>
           </View>
         ) : (
           <View style={styles.weeklyView}>
             {dayNames.map((dayName, index) => (
-              <View key={index} style={[styles.daySection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View key={index} style={styles.daySection}>
                 <View style={styles.daySectionHeader}>
-                  <Text style={[styles.dayName, { color: colors.text }]}>{dayName}</Text>
+                  <Text style={styles.dayName}>{dayName}</Text>
                   <TouchableOpacity
-                    style={[styles.addDayButton, { backgroundColor: colors.primary }]}
+                    style={styles.addDayButton}
                     onPress={() => {
                       setSelectedDay(index);
                       setShowAddModal(true);
@@ -455,16 +1029,16 @@ export default function TrainerAvailabilityScreen() {
 
                 {groupedAvailability[index] ? (
                   groupedAvailability[index].map((slot) => (
-                    <View key={slot.id} style={[styles.timeSlot, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+                    <View key={slot.id} style={styles.timeSlot}>
                       <View style={styles.timeInfo}>
                         <Clock color={colors.primary} size={16} />
-                        <Text style={[styles.timeText, { color: colors.text }]}>
+                        <Text style={styles.timeText}>
                           {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
                         </Text>
                       </View>
 
                       <TouchableOpacity
-                        style={[styles.deleteButton, { backgroundColor: colors.error + '10' }]}
+                        style={styles.deleteButton}
                         onPress={() => deleteAvailability(slot.id)}
                       >
                         <Trash2 color={colors.error} size={16} />
@@ -474,10 +1048,10 @@ export default function TrainerAvailabilityScreen() {
                 ) : (
                   <View style={styles.emptyState}>
                     <Clock color={colors.textSecondary} size={24} />
-                    <Text style={[styles.noAvailability, { color: colors.textSecondary }]}>
+                    <Text style={styles.noAvailability}>
                       No availability set
                     </Text>
-                    <Text style={[styles.emptyStateHint, { color: colors.textSecondary }]}>
+                    <Text style={styles.emptyStateHint}>
                       Tap + to add your available hours
                     </Text>
                   </View>
@@ -498,7 +1072,7 @@ export default function TrainerAvailabilityScreen() {
           resetModalState();
         }}
       >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => {
               setShowAddModal(false);
@@ -506,14 +1080,14 @@ export default function TrainerAvailabilityScreen() {
             }}>
               <X color={colors.text} size={24} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Add Availability</Text>
+            <Text style={styles.modalTitle}>Add Availability</Text>
             <View style={{ width: 24 }} />
           </View>
 
-          <View style={styles.modalContent}>
+          <ScrollView style={styles.modalContent}>
             {selectedDate && (
-              <View style={[styles.selectedDateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.selectedDateText, { color: colors.text }]}>
+              <View style={styles.selectedDateCard}>
+                <Text style={styles.selectedDateText}>
                   {selectedDate.toLocaleDateString('en-US', {
                     weekday: 'long',
                     month: 'long',
@@ -524,21 +1098,20 @@ export default function TrainerAvailabilityScreen() {
             )}
 
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Day of Week</Text>
+              <Text style={styles.formLabel}>Day of Week</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.daySelector}>
                 {dayNames.map((day, index) => (
                   <TouchableOpacity
                     key={index}
                     style={[
                       styles.dayOption,
-                      { borderColor: colors.border, backgroundColor: colors.surface },
-                      selectedDay === index && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
+                      selectedDay === index && styles.dayOptionActive
                     ]}
                     onPress={() => setSelectedDay(index)}
                   >
                     <Text style={[
                       styles.dayOptionText,
-                      { color: selectedDay === index ? colors.primary : colors.text }
+                      selectedDay === index && styles.dayOptionTextActive
                     ]}>
                       {day.slice(0, 3)}
                     </Text>
@@ -549,22 +1122,19 @@ export default function TrainerAvailabilityScreen() {
 
             {/* Quick Presets */}
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Quick Presets</Text>
+              <Text style={styles.formLabel}>Quick Presets</Text>
               <View style={styles.presetsGrid}>
                 {timePresets.map((preset, index) => {
                   const IconComponent = preset.icon;
                   return (
                     <TouchableOpacity
                       key={index}
-                      style={[
-                        styles.presetButton,
-                        { backgroundColor: colors.surface, borderColor: colors.border }
-                      ]}
+                      style={styles.presetButton}
                       onPress={() => applyTimePreset(preset)}
                     >
                       <IconComponent color={preset.color} size={20} />
-                      <Text style={[styles.presetName, { color: colors.text }]}>{preset.name}</Text>
-                      <Text style={[styles.presetTime, { color: colors.textSecondary }]}>
+                      <Text style={styles.presetName}>{preset.name}</Text>
+                      <Text style={styles.presetTime}>
                         {formatTime(preset.start)} - {formatTime(preset.end)}
                       </Text>
                     </TouchableOpacity>
@@ -574,385 +1144,116 @@ export default function TrainerAvailabilityScreen() {
             </View>
 
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Custom Time Range</Text>
+              <Text style={styles.formLabel}>Custom Time Range</Text>
               <View style={styles.timeInputs}>
                 <View style={styles.timeInput}>
-                  <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Start</Text>
-                  <TouchableOpacity style={[styles.timeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                    <Text style={[styles.timeButtonText, { color: colors.text }]}>{formatTime(startTime)}</Text>
+                  <Text style={styles.timeLabel}>Start</Text>
+                  <TouchableOpacity style={styles.timeButton}>
+                    <Text style={styles.timeButtonText}>{formatTime(startTime)}</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.timeInput}>
-                  <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>End</Text>
-                  <TouchableOpacity style={[styles.timeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                    <Text style={[styles.timeButtonText, { color: colors.text }]}>{formatTime(endTime)}</Text>
+                  <Text style={styles.timeLabel}>End</Text>
+                  <TouchableOpacity style={styles.timeButton}>
+                    <Text style={styles.timeButtonText}>{formatTime(endTime)}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-              <Text style={[styles.timeHint, { color: colors.textSecondary }]}>
+              <Text style={styles.timeHint}>
                 Tap preset buttons above for quick setup, or customize times here
               </Text>
             </View>
 
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: colors.primary }]}
+              style={styles.submitButton}
               onPress={addAvailability}
             >
               <Plus color="#FFFFFF" size={20} />
               <Text style={styles.submitButtonText}>Add Availability</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
+
+      {/* Toast for iOS */}
       {toastMsg && (
-        <View style={[styles.toast, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <Text style={{ color: colors.text }}>{toastMsg}</Text>
+        <View style={styles.toast}> 
+          <Text style={styles.toastText}>{toastMsg}</Text>
         </View>
       )}
     </View>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 50,
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  quickSetupButton: {
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  quickSetupText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-  },
-  viewToggle: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 4,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  toggleText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  helperSection: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-  },
-  helperTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  helperText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  calendarView: {
-    flex: 1,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 10,
-  },
-  monthYear: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  calendarDaysHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 10,
-  },
-  dayHeader: {
-    fontSize: 12,
-    fontWeight: '500',
-    width: 40,
-    textAlign: 'center',
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-  },
-  calendarDate: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    position: 'relative',
-  },
-  calendarDateText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  availabilityDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    position: 'absolute',
-    bottom: 4,
-  },
-  legend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    marginTop: 20,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  legendText: {
-    fontSize: 12,
-  },
-  weeklyView: {
-    flex: 1,
-  },
-  daySection: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  daySectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  dayName: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  addDayButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timeSlot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  timeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  timeText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  deleteButton: {
-    padding: 8,
-    borderRadius: 6,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    gap: 8,
-  },
-  noAvailability: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  emptyStateHint: {
-    fontSize: 12,
-  },
-  modalContainer: {
-    flex: 1,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  selectedDateCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  selectedDateText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  formSection: {
-    marginBottom: 24,
-  },
-  formLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 12,
-  },
-  daySelector: {
-    flexDirection: 'row',
-  },
-  dayOption: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-  },
-  dayOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  timeInputs: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  timeInput: {
-    flex: 1,
-  },
-  timeLabel: {
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  timeButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  timeButtonText: {
-    fontSize: 16,
-  },
-  presetsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  presetButton: {
-    flex: 1,
-    minWidth: '45%',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    gap: 4,
-  },
-  presetName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  presetTime: {
-    fontSize: 12,
-  },
-  timeHint: {
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 20,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  toast: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-  },
-});
+const WeeklyAvailabilityGrid = ({ availability, onToggleSlot, colors, styles }: {
+  availability: TrainerAvailability[];
+  onToggleSlot: (dayOfWeek: number, timeSlot: string) => void;
+  colors: any;
+  styles: any;
+}) => {
+  const timeSlots = [];
+  for (let hour = 6; hour <= 22; hour++) {
+    timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
+  }
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const isSlotAvailable = (dayOfWeek: number, timeSlot: string) => {
+    const slotTime = timeSlot + ':00';
+    return availability.some(slot =>
+      slot.day_of_week === dayOfWeek &&
+      slot.start_time <= slotTime &&
+      slot.end_time > slotTime &&
+      slot.is_recurring &&
+      !slot.is_blocked
+    );
+  };
+
+  return (
+    <View style={styles.gridContainer}>
+      {/* Time column header */}
+      <View style={styles.gridHeader}>
+        <View style={styles.timeHeaderCell}>
+          <Text style={[styles.headerText, { color: colors.textSecondary }]}>Time</Text>
+        </View>
+        {dayNames.map((day, index) => (
+          <View key={index} style={styles.dayHeaderCell}>
+            <Text style={[styles.headerText, { color: colors.text }]}>{day}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Time slots grid */}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {timeSlots.map((timeSlot, timeIndex) => (
+          <View key={timeIndex} style={styles.gridRow}>
+            <View style={styles.timeCell}>
+              <Text style={styles.gridTimeText}>
+                {new Date(`2000-01-01T${timeSlot}:00`).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </Text>
+            </View>
+            {dayNames.map((_, dayIndex) => (
+              <TouchableOpacity
+                key={dayIndex}
+                style={[
+                  styles.slotCell,
+                  isSlotAvailable(dayIndex, timeSlot) && styles.slotCellAvailable
+                ]}
+                onPress={() => onToggleSlot(dayIndex, timeSlot)}
+              >
+                {isSlotAvailable(dayIndex, timeSlot) && (
+                  <View style={styles.availableIndicator} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};

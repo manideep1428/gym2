@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase, Profile, TrainerAvailability } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
-import { ChevronLeft, Clock, User, MessageSquare, ChevronRight, ArrowLeft } from 'lucide-react-native';
+import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X } from 'lucide-react-native';
 
 export default function BookSession() {
   const { colors } = useTheme();

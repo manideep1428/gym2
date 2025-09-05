@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, A
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, PaymentRequest, Profile } from '@/lib/supabase';
-import { CreditCard, Plus, DollarSign, User, Calendar, X } from 'lucide-react-native';
+import NotificationService from '@/lib/notificationService';
+import { CreditCard, Plus, DollarSign, User, Calendar, X, Search } from 'lucide-react-native';
 
 export default function TrainerPayments() {
   const { colors } = useTheme();
@@ -11,7 +12,9 @@ export default function TrainerPayments() {
   const [paymentRequests, setPaymentRequests] = useState<(PaymentRequest & { client: Profile })[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [clients, setClients] = useState<Profile[]>([]);
+  const [allClients, setAllClients] = useState<Profile[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('');
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [newPayment, setNewPayment] = useState({
     amount: '',
     description: '',
@@ -52,7 +55,17 @@ export default function TrainerPayments() {
     if (!userProfile) return;
 
     try {
-      // Get unique clients from bookings
+      // Get all clients from the database for search functionality
+      const { data: allClientsData, error: allClientsError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'client')
+        .order('name');
+
+      if (allClientsError) throw allClientsError;
+      setAllClients(allClientsData || []);
+
+      // Get clients who have had bookings with this trainer
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select('client_id')
@@ -67,7 +80,8 @@ export default function TrainerPayments() {
           .from('profiles')
           .select('*')
           .in('id', uniqueClientIds)
-          .eq('role', 'client');
+          .eq('role', 'client')
+          .order('name');
 
         if (clientsError) throw clientsError;
         setClients(clientsData || []);
@@ -86,7 +100,7 @@ export default function TrainerPayments() {
     }
 
     try {
-      const { error } = await supabase
+      const { data: paymentData, error } = await supabase
         .from('payment_requests')
         .insert({
           client_id: selectedClient,
@@ -94,18 +108,62 @@ export default function TrainerPayments() {
           amount: parseFloat(newPayment.amount),
           description: newPayment.description,
           due_date: newPayment.dueDate,
-        });
+        })
+        .select('*, client:profiles!client_id(*)')
+        .single();
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Payment request created successfully!');
+      // Send notification to client
+      await sendPaymentNotification(paymentData);
+
+      // Create in-app notification
+      await supabase.from('notifications').insert({
+        user_id: selectedClient,
+        title: 'Payment Request',
+        message: `${userProfile.name} sent you a payment request for $${newPayment.amount}`,
+        type: 'payment_request'
+      });
+
+      Alert.alert('Success', 'Payment request sent to client!');
       setShowCreateModal(false);
       setNewPayment({ amount: '', description: '', dueDate: new Date().toISOString().split('T')[0] });
       setSelectedClient('');
+      setClientSearchQuery('');
       fetchPaymentRequests();
     } catch (error) {
       Alert.alert('Error', 'Failed to create payment request');
       console.error('Create payment error:', error);
+    }
+  };
+
+  const sendPaymentNotification = async (paymentData: any) => {
+    try {
+      const notificationService = NotificationService.getInstance();
+      
+      // Get client's push token
+      const { data: clientProfile } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .eq('id', paymentData.client_id)
+        .single();
+
+      if (clientProfile?.push_token) {
+        await notificationService.sendPushNotification(
+          clientProfile.push_token,
+          'Payment Request',
+          `${userProfile?.name} sent you a payment request for $${paymentData.amount}`,
+          {
+            type: 'payment_request' as any,
+            paymentId: paymentData.id,
+            trainerId: userProfile?.id,
+            trainerName: userProfile?.name,
+            amount: paymentData.amount.toString()
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error sending payment notification:', error);
     }
   };
 
@@ -237,8 +295,28 @@ export default function TrainerPayments() {
           <View style={styles.modalContent}>
             <View style={styles.formSection}>
               <Text style={[styles.formLabel, { color: colors.text }]}>Client</Text>
+              
+              <View style={styles.searchContainer}>
+                <View style={[styles.searchInputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Search color={colors.textSecondary} size={20} />
+                  <TextInput
+                    style={[styles.searchInput, { color: colors.text }]}
+                    placeholder="Search clients by name..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={clientSearchQuery}
+                    onChangeText={setClientSearchQuery}
+                  />
+                </View>
+              </View>
+
               <View style={styles.clientSelector}>
-                {clients.map((client) => (
+                {(clientSearchQuery ? 
+                  allClients.filter(client => 
+                    client.name.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+                    client.email.toLowerCase().includes(clientSearchQuery.toLowerCase())
+                  ) : 
+                  clients
+                ).map((client) => (
                   <TouchableOpacity
                     key={client.id}
                     style={[
@@ -246,14 +324,25 @@ export default function TrainerPayments() {
                       { borderColor: colors.border, backgroundColor: colors.surface },
                       selectedClient === client.id && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
                     ]}
-                    onPress={() => setSelectedClient(client.id)}
+                    onPress={() => {
+                      setSelectedClient(client.id);
+                      setClientSearchQuery('');
+                    }}
                   >
-                    <Text style={[
-                      styles.clientOptionText,
-                      { color: selectedClient === client.id ? colors.primary : colors.text }
-                    ]}>
-                      {client.name}
-                    </Text>
+                    <View style={styles.clientOptionContent}>
+                      <Text style={[
+                        styles.clientOptionText,
+                        { color: selectedClient === client.id ? colors.primary : colors.text }
+                      ]}>
+                        {client.name}
+                      </Text>
+                      <Text style={[
+                        styles.clientOptionEmail,
+                        { color: colors.textSecondary }
+                      ]}>
+                        {client.email}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -443,8 +532,25 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
     marginBottom: 8,
   },
+  searchContainer: {
+    marginBottom: 16,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+  },
   clientSelector: {
     gap: 8,
+    maxHeight: 200,
   },
   clientOption: {
     borderWidth: 1,
@@ -452,9 +558,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  clientOptionContent: {
+    gap: 4,
+  },
   clientOptionText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  clientOptionEmail: {
+    fontSize: 12,
   },
   input: {
     borderWidth: 1,

@@ -153,7 +153,10 @@ export default function NotificationSettingsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft color={colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Notification Settings</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: colors.text }]}>Notification Settings</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Manage your alerts and stay updated.</Text>
+        </View>
       </View>
 
       <ScrollView style={styles.content}>
@@ -164,7 +167,7 @@ export default function NotificationSettingsScreen() {
             Enable push notifications to receive real-time updates about your bookings
           </Text>
           
-          <View style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.settingInfo}>
               <Smartphone color={colors.textSecondary} size={20} />
               <View style={styles.settingTextContainer}>
@@ -186,81 +189,74 @@ export default function NotificationSettingsScreen() {
         {/* Notification Types */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Notification Types</Text>
-          
-          <View style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Bell color={colors.textSecondary} size={20} />
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: colors.text }]}>Booking Requests</Text>
-                <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>
-                  New session booking requests
-                </Text>
+          <View style={[styles.card, { backgroundColor: colors.card }]}> 
+            <View style={styles.row}>
+              <View style={styles.settingInfo}>
+                <Bell color={colors.textSecondary} size={20} />
+                <View style={styles.settingTextContainer}>
+                  <Text style={[styles.settingText, { color: colors.text }]}>Booking Requests</Text>
+                  <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>New session booking requests</Text>
+                </View>
               </View>
+              <Switch
+                value={settings.bookingRequests}
+                onValueChange={(value) => handleToggle('bookingRequests', value)}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+                disabled={!settings.pushNotifications}
+              />
             </View>
-            <Switch
-              value={settings.bookingRequests}
-              onValueChange={(value) => handleToggle('bookingRequests', value)}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
-              disabled={!settings.pushNotifications}
-            />
-          </View>
 
-          <View style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.settingInfo}>
-              <MessageSquare color={colors.textSecondary} size={20} />
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: colors.text }]}>Booking Confirmations</Text>
-                <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>
-                  When you accept or reject bookings
-                </Text>
+            <View style={styles.row}>
+              <View style={styles.settingInfo}>
+                <MessageSquare color={colors.textSecondary} size={20} />
+                <View style={styles.settingTextContainer}>
+                  <Text style={[styles.settingText, { color: colors.text }]}>Booking Confirmations</Text>
+                  <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>When you accept or reject bookings</Text>
+                </View>
               </View>
+              <Switch
+                value={settings.bookingConfirmations}
+                onValueChange={(value) => handleToggle('bookingConfirmations', value)}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+                disabled={!settings.pushNotifications}
+              />
             </View>
-            <Switch
-              value={settings.bookingConfirmations}
-              onValueChange={(value) => handleToggle('bookingConfirmations', value)}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
-              disabled={!settings.pushNotifications}
-            />
-          </View>
 
-          <View style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Calendar color={colors.textSecondary} size={20} />
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: colors.text }]}>Session Reminders</Text>
-                <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>
-                  Reminders before sessions start
-                </Text>
+            <View style={styles.row}>
+              <View style={styles.settingInfo}>
+                <Calendar color={colors.textSecondary} size={20} />
+                <View style={styles.settingTextContainer}>
+                  <Text style={[styles.settingText, { color: colors.text }]}>Session Reminders</Text>
+                  <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>Reminders before sessions start</Text>
+                </View>
               </View>
+              <Switch
+                value={settings.sessionReminders}
+                onValueChange={(value) => handleToggle('sessionReminders', value)}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+                disabled={!settings.pushNotifications}
+              />
             </View>
-            <Switch
-              value={settings.sessionReminders}
-              onValueChange={(value) => handleToggle('sessionReminders', value)}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
-              disabled={!settings.pushNotifications}
-            />
-          </View>
 
-          <View style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Bell color={colors.textSecondary} size={20} />
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: colors.text }]}>Cancellations</Text>
-                <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>
-                  When sessions are cancelled
-                </Text>
+            <View style={[styles.row, styles.rowLast]}>
+              <View style={styles.settingInfo}>
+                <Bell color={colors.textSecondary} size={20} />
+                <View style={styles.settingTextContainer}>
+                  <Text style={[styles.settingText, { color: colors.text }]}>Cancellations</Text>
+                  <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>When sessions are cancelled</Text>
+                </View>
               </View>
+              <Switch
+                value={settings.cancellations}
+                onValueChange={(value) => handleToggle('cancellations', value)}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+                disabled={!settings.pushNotifications}
+              />
             </View>
-            <Switch
-              value={settings.cancellations}
-              onValueChange={(value) => handleToggle('cancellations', value)}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
-              disabled={!settings.pushNotifications}
-            />
           </View>
         </View>
 
@@ -319,8 +315,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 4,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  subtitle: {
+    marginTop: 4,
+    fontSize: 14,
   },
   content: {
     flex: 1,
@@ -339,14 +339,27 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
-  settingItem: {
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    // Android shadow
+    elevation: 2,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  rowLast: {
+    borderBottomWidth: 0,
   },
   settingInfo: {
     flexDirection: 'row',
@@ -372,7 +385,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   reminderOption: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
   },

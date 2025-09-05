@@ -14,13 +14,15 @@ Notifications.setNotificationHandler({
 });
 
 export interface NotificationData extends Record<string, unknown> {
-  type: 'booking_request' | 'booking_accepted' | 'booking_rejected' | 'session_reminder' | 'booking_cancelled';
+  type: 'booking_request' | 'booking_accepted' | 'booking_rejected' | 'session_reminder' | 'booking_cancelled' | 'payment_request' | 'payment_confirmation';
   bookingId?: string;
   trainerId?: string;
   clientId?: string;
   sessionTime?: string;
   trainerName?: string;
   clientName?: string;
+  paymentId?: string;
+  amount?: string;
 }
 
 class NotificationService {
@@ -281,6 +283,82 @@ class NotificationService {
       }
     } catch (error) {
       console.error('Error sending cancellation notification:', error);
+    }
+  }
+
+  async notifyPaymentRequest(
+    clientId: string,
+    trainerName: string,
+    amount: number,
+    paymentId: string
+  ): Promise<void> {
+    try {
+      // Get client's push token and notification settings
+      const { data: clientProfile } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .eq('id', clientId)
+        .single();
+
+      const { data: settings } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .eq('user_id', clientId)
+        .single();
+
+      if (clientProfile?.push_token && settings?.push_notifications) {
+        await this.sendPushNotification(
+          clientProfile.push_token,
+          'Payment Request',
+          `${trainerName} sent you a payment request for $${amount}`,
+          {
+            type: 'payment_request',
+            trainerName,
+            amount: amount.toString(),
+            paymentId,
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error sending payment request notification:', error);
+    }
+  }
+
+  async notifyPaymentConfirmation(
+    trainerId: string,
+    clientName: string,
+    amount: number,
+    paymentId: string
+  ): Promise<void> {
+    try {
+      // Get trainer's push token and notification settings
+      const { data: trainerProfile } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .eq('id', trainerId)
+        .single();
+
+      const { data: settings } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .eq('user_id', trainerId)
+        .single();
+
+      if (trainerProfile?.push_token && settings?.push_notifications) {
+        await this.sendPushNotification(
+          trainerProfile.push_token,
+          'Payment Received',
+          `${clientName} marked payment of $${amount} as paid`,
+          {
+            type: 'payment_confirmation',
+            clientName,
+            amount: amount.toString(),
+            paymentId,
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error sending payment confirmation notification:', error);
     }
   }
 

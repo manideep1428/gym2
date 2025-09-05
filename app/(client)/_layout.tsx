@@ -1,7 +1,20 @@
 import { Tabs } from 'expo-router';
-import { House, Calendar, Package, TrendingUp, User, Bell } from 'lucide-react-native';
+import {
+  House,
+  Calendar,
+  Package,
+  TrendingUp,
+  User,
+  Bell,
+  CreditCard,
+} from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useDeviceInfo, getAdaptiveTabBarStyle, getAdaptiveIconSize, getAdaptiveFontSize } from '@/utils/deviceUtils';
+import {
+  useDeviceInfo,
+  getAdaptiveTabBarStyle,
+  getAdaptiveIconSize,
+  getAdaptiveFontSize,
+} from '@/utils/deviceUtils';
 
 export default function ClientTabLayout() {
   const { colors } = useTheme();
@@ -34,10 +47,10 @@ export default function ClientTabLayout() {
         tabBarLabelStyle: {
           fontSize: fontSize,
           fontWeight: '500',
-          marginTop: 2,
+          marginTop:6,
         },
         tabBarIconStyle: {
-          marginTop: 4,
+          marginTop:6,
         },
       }}
     >
@@ -58,8 +71,19 @@ export default function ClientTabLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: 'Notifications',
-          tabBarIcon: ({ color }) => <Bell color={color} size={iconSize} />,
+          href: null,
+        }}
+      />{' '}
+      <Tabs.Screen
+        name="notification-settings"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="trainer-search"
+        options={{
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -67,6 +91,13 @@ export default function ClientTabLayout() {
         options={{
           title: 'Packages',
           tabBarIcon: ({ color }) => <Package color={color} size={iconSize} />,
+        }}
+      />
+      <Tabs.Screen
+        name="payments"
+        options={{
+          title: 'Payments',
+          tabBarIcon: ({ color }) => <CreditCard color={color} size={iconSize} />,
         }}
       />
       <Tabs.Screen
@@ -85,7 +116,9 @@ export default function ClientTabLayout() {
         name="progress"
         options={{
           title: 'Progress',
-          tabBarIcon: ({ color }) => <TrendingUp color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <TrendingUp color={color} size={iconSize} />
+          ),
         }}
       />
       <Tabs.Screen
