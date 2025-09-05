@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { User, Moon, Sun, LogOut, Edit, Bell, Shield, Clock } from 'lucide-react-native';
+import GoogleCalendarConnection from '@/components/GoogleCalendarConnection';
 
 export default function TrainerSettings() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -24,7 +26,7 @@ export default function TrainerSettings() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
       </View>
@@ -50,6 +52,12 @@ export default function TrainerSettings() {
             <Edit color={colors.textSecondary} size={20} />
           </TouchableOpacity>
         </View>
+
+        {/* Google Calendar Integration */}
+        {/* <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Calendar Integration</Text>
+          <GoogleCalendarConnection />
+        </View> */}
 
         {/* Appearance Section */}
         <View style={styles.section}>
@@ -96,7 +104,10 @@ export default function TrainerSettings() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity 
+            style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push('/(trainer)/notification-settings')}
+          >
             <View style={styles.settingInfo}>
               <Bell color={colors.textSecondary} size={20} />
               <Text style={[styles.settingText, { color: colors.text }]}>Notification Settings</Text>
@@ -122,14 +133,13 @@ export default function TrainerSettings() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 50,
   },
   header: {
     paddingHorizontal: 20,

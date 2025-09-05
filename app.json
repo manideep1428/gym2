@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "bolt-expo-nativewind",
+    "name": "GYM",
     "slug": "gymupdated",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["background-fetch", "remote-notification"]
+      }
     },
     "web": {
       "bundler": "metro",
@@ -19,7 +22,16 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ffffff",
+          "sounds": ["./assets/sounds/notification.wav"],
+          "mode": "production"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -32,7 +44,18 @@
     },
     "owner": "manideep1428",
     "android": {
-      "package": "com.manideep1428.gymupdated"
+      "package": "com.manideep1428.gymupdated",
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK"
+      ]
+    },
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#ffffff",
+      "androidMode": "default",
+      "androidCollapsedTitle": "GYM App"
     }
   }
 }

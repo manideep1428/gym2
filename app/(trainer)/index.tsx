@@ -111,9 +111,7 @@ export default function TrainerDashboard() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading dashboard...</Text>
-      </View>
+      <TrainerDashboardSkeleton />
     );
   }
 

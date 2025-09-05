@@ -4,6 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile, Booking } from '@/lib/supabase';
 import { Users, User, Calendar, TrendingUp, X } from 'lucide-react-native';
+import { TrainerClientsSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerClients() {
   const { colors } = useTheme();
@@ -91,11 +92,7 @@ export default function TrainerClients() {
   );
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading clients...</Text>
-      </View>
-    );
+    return <TrainerClientsSkeleton />;
   }
 
   return (

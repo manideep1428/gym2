@@ -3,18 +3,24 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Booking, Profile } from '@/lib/supabase';
-import { Calendar, User, Clock, CircleCheck as CheckCircle, Circle as XCircle } from 'lucide-react-native';
+import { googleCalendarService } from '@/lib/googleCalendar';
+import NotificationService from '@/lib/notificationService';
+import { Calendar, User, Clock, CircleCheck as CheckCircle, Circle as XCircle, CalendarPlus } from 'lucide-react-native';
+import { TrainerBookingsSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerBookings() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
   const [bookings, setBookings] = useState<(Booking & { client: Profile })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [addingToCalendar, setAddingToCalendar] = useState<string | null>(null);
 
   const styles = createStyles(colors);
 
   useEffect(() => {
     fetchBookings();
+    checkCalendarConnection();
     
     // Set up real-time subscription
     const subscription = supabase
@@ -29,6 +35,15 @@ export default function TrainerBookings() {
       subscription.unsubscribe();
     };
   }, [userProfile]);
+
+  const checkCalendarConnection = async () => {
+    try {
+      const connected = await googleCalendarService.isConnected();
+      setCalendarConnected(connected);
+    } catch (error) {
+      console.error('Error checking calendar connection:', error);
+    }
+  };
 
   const fetchBookings = async () => {
     if (!userProfile) return;
@@ -68,21 +83,39 @@ export default function TrainerBookings() {
       // If confirming a booking, auto-cancel conflicting bookings
       if (status === 'confirmed') {
         await handleConflictingBookings(booking);
+        
+        // Schedule session reminder notification
+        const notificationService = NotificationService.getInstance();
+        const sessionDateTime = new Date(`${booking.date}T${booking.start_time}`);
+        
+        await notificationService.scheduleSessionReminder(
+          sessionDateTime,
+          10, // Default 10 minutes
+          booking.id,
+          userProfile?.name || 'Trainer',
+          booking.client.name
+        );
       }
 
-      // Send notification to client
-      const notificationMessage = status === 'confirmed' 
-        ? `Your session on ${formatDate(booking.date)} at ${formatTime(booking.start_time)} has been confirmed!`
-        : `Your session on ${formatDate(booking.date)} at ${formatTime(booking.start_time)} has been cancelled.`;
-
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: booking.client_id,
-          title: `Booking ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-          message: notificationMessage,
-          type: `booking_${status}`,
-        });
+      // Send push notification to client about booking status
+      const notificationService = NotificationService.getInstance();
+      const sessionTime = `${formatDate(booking.date)} at ${formatTime(booking.start_time)}`;
+      
+      if (status === 'confirmed') {
+        await notificationService.notifyBookingStatus(
+          booking.client_id,
+          userProfile?.name || 'Trainer',
+          sessionTime,
+          'accepted'
+        );
+      } else if (status === 'cancelled') {
+        await notificationService.notifyBookingStatus(
+          booking.client_id,
+          userProfile?.name || 'Trainer',
+          sessionTime,
+          'rejected'
+        );
+      }
       
       fetchBookings();
       Alert.alert('Success', `Booking ${status} successfully!`);
@@ -136,6 +169,37 @@ export default function TrainerBookings() {
       }
     } catch (error) {
       console.error('Error handling conflicting bookings:', error);
+    }
+  };
+
+  const handleAddToCalendar = async (booking: any) => {
+    if (!calendarConnected) {
+      Alert.alert(
+        'Google Calendar Not Connected',
+        'Please connect your Google Calendar in the account settings to add sessions to your calendar.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    setAddingToCalendar(booking.id);
+    try {
+      await googleCalendarService.addBookingToCalendar(booking, 'trainer');
+      Alert.alert(
+        'Added to Calendar',
+        'The training session has been added to your Google Calendar.',
+        [{ text: 'OK' }]
+      );
+      fetchBookings(); // Refresh to update calendar status
+    } catch (error: any) {
+      console.error('Error adding to calendar:', error);
+      Alert.alert(
+        'Failed to Add to Calendar',
+        error.message || 'Could not add the session to your calendar. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setAddingToCalendar(null);
     }
   };
 
@@ -224,16 +288,46 @@ export default function TrainerBookings() {
       )}
 
       {booking.status === 'confirmed' && (
-        <TouchableOpacity
-          style={[styles.completeButton, { backgroundColor: colors.primary }]}
-          onPress={() => updateBookingStatus(booking.id, 'completed')}
-        >
-          <CheckCircle color="#FFFFFF" size={16} />
-          <Text style={styles.actionButtonText}>Mark Complete</Text>
-        </TouchableOpacity>
+        <View style={styles.confirmedActions}>
+          <TouchableOpacity
+            style={[styles.completeButton, { backgroundColor: colors.primary }]}
+            onPress={() => updateBookingStatus(booking.id, 'completed')}
+          >
+            <CheckCircle color="#FFFFFF" size={16} />
+            <Text style={styles.actionButtonText}>Mark Complete</Text>
+          </TouchableOpacity>
+
+          {calendarConnected && !booking.calendar_added_by_trainer && (
+            <TouchableOpacity
+              style={[styles.calendarButton, { backgroundColor: colors.secondary }]}
+              onPress={() => handleAddToCalendar(booking)}
+              disabled={addingToCalendar === booking.id}
+            >
+              {addingToCalendar === booking.id ? (
+                <Text style={[styles.actionButtonText, { color: colors.text }]}>Adding...</Text>
+              ) : (
+                <>
+                  <CalendarPlus color={colors.text} size={16} />
+                  <Text style={[styles.actionButtonText, { color: colors.text }]}>Add to Calendar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {booking.calendar_added_by_trainer && (
+            <View style={[styles.calendarAdded, { backgroundColor: colors.success + '20' }]}>
+              <CheckCircle color={colors.success} size={16} />
+              <Text style={[styles.calendarAddedText, { color: colors.success }]}>Added to Calendar</Text>
+            </View>
+          )}
+        </View>
       )}
     </View>
   );
+
+  if (loading) {
+    return <TrainerBookingsSkeleton />;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -365,6 +459,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 12,
     marginTop: 12,
   },
+  confirmedActions: {
+    gap: 8,
+    marginTop: 12,
+  },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
@@ -388,6 +486,25 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     borderRadius: 8,
-    marginTop: 12,
+  },
+  calendarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  calendarAdded: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  calendarAddedText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

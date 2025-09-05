@@ -4,7 +4,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase, Profile, TrainerAvailability } from '@/lib/supabase';
-import { ChevronLeft, Calendar, Clock, User, MessageSquare, ChevronRight, ArrowLeft } from 'lucide-react-native';
+import NotificationService from '@/lib/notificationService';
+import { ChevronLeft, Clock, User, MessageSquare, ChevronRight, ArrowLeft } from 'lucide-react-native';
 
 export default function BookSession() {
   const { colors } = useTheme();
@@ -253,15 +254,15 @@ export default function BookSession() {
 
       if (error) throw error;
 
-      // Create notification for trainer
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: trainer.id,
-          title: 'New Booking Request',
-          message: `${userProfile.name} has requested a ${sessionDuration}-minute session on ${new Date(selectedDate).toLocaleDateString()} at ${new Date(`2000-01-01T${selectedTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`,
-          type: 'booking_request',
-        });
+      // Send push notification to trainer about new booking request
+      const notificationService = NotificationService.getInstance();
+      const sessionTime = `${new Date(selectedDate).toLocaleDateString()} at ${new Date(`2000-01-01T${selectedTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+      
+      await notificationService.notifyBookingRequest(
+        trainer.id,
+        userProfile.name,
+        sessionTime
+      );
 
       Alert.alert(
         'Booking Requested!',

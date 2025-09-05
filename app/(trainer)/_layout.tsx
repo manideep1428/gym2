@@ -1,7 +1,20 @@
 import { Tabs } from 'expo-router';
-import { ChartBar as BarChart3, Calendar, Clock, Users, CreditCard, Package, Settings } from 'lucide-react-native';
+import {
+  ChartBar as BarChart3,
+  Calendar,
+  Clock,
+  Users,
+  CreditCard,
+  Package,
+  Settings,
+} from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useDeviceInfo, getAdaptiveTabBarStyle, getAdaptiveIconSize, getAdaptiveFontSize } from '@/utils/deviceUtils';
+import {
+  useDeviceInfo,
+  getAdaptiveTabBarStyle,
+  getAdaptiveIconSize,
+  getAdaptiveFontSize,
+} from '@/utils/deviceUtils';
 
 export default function TrainerTabLayout() {
   const { colors } = useTheme();
@@ -45,7 +58,9 @@ export default function TrainerTabLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => <BarChart3 color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <BarChart3 color={color} size={iconSize} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -69,6 +84,12 @@ export default function TrainerTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="notification-settings"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />{' '}
+      <Tabs.Screen
         name="edit-profile"
         options={{
           href: null, // Hide from tab bar
@@ -78,7 +99,9 @@ export default function TrainerTabLayout() {
         name="payments"
         options={{
           title: 'Payments',
-          tabBarIcon: ({ color }) => <CreditCard color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <CreditCard color={color} size={iconSize} />
+          ),
         }}
       />
       <Tabs.Screen

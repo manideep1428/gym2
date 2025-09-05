@@ -273,6 +273,76 @@ export const ClientBookingsSkeleton = () => {
   );
 };
 
+// Trainer Bookings Skeleton
+export const TrainerBookingsSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={styles.header}>
+        <SkeletonLoader width={120} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
+        <SkeletonLoader width={160} height={16} borderRadius={4} />
+      </View>
+
+      <View style={styles.content}>
+        <BookingCardSkeleton />
+        <BookingCardSkeleton />
+        <BookingCardSkeleton />
+        <BookingCardSkeleton />
+      </View>
+    </View>
+  );
+};
+
+// Trainer Clients Skeleton
+export const TrainerClientsSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={styles.header}>
+        <SkeletonLoader width={120} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
+        <SkeletonLoader width={140} height={16} borderRadius={4} />
+      </View>
+
+      <View style={styles.content}>
+        <View style={{ gap: 12 }}>
+          <View style={[styles.bookingCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+            <SkeletonLoader width={48} height={48} borderRadius={24} style={{ marginRight: 12 }} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <SkeletonLoader width={140} height={16} />
+              <SkeletonLoader width={180} height={12} />
+            </View>
+          </View>
+          <View style={[styles.bookingCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+            <SkeletonLoader width={48} height={48} borderRadius={24} style={{ marginRight: 12 }} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <SkeletonLoader width={160} height={16} />
+              <SkeletonLoader width={140} height={12} />
+            </View>
+          </View>
+          <View style={[styles.bookingCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+            <SkeletonLoader width={48} height={48} borderRadius={24} style={{ marginRight: 12 }} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <SkeletonLoader width={120} height={16} />
+              <SkeletonLoader width={200} height={12} />
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// Generic List Skeleton
+export const ListSkeleton = ({ children }) => {
+  return (
+    <View style={{ gap: 12 }}>
+      {children}
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,

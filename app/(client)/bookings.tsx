@@ -1,22 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Booking, Profile } from '@/lib/supabase';
-import { Calendar, Clock, User, MapPin } from 'lucide-react-native';
+import { googleCalendarService } from '@/lib/googleCalendar';
+import { Calendar, Clock, User, MapPin, CalendarPlus } from 'lucide-react-native';
 import { ClientBookingsSkeleton } from '@/components/SkeletonLoader';
+import BookingNotificationCard from '@/components/BookingNotificationCard';
 
 export default function ClientBookings() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
   const [bookings, setBookings] = useState<(Booking & { trainer: Profile })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarConnected, setCalendarConnected] = useState(false);
 
   const styles = createStyles(colors);
 
   useEffect(() => {
     fetchBookings();
-  }, []);
+    checkCalendarConnection();
+    
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('client_bookings')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'bookings', filter: `client_id=eq.${userProfile?.id}` },
+        () => fetchBookings()
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [userProfile]);
+
+  const checkCalendarConnection = async () => {
+    try {
+      const connected = await googleCalendarService.isConnected();
+      setCalendarConnected(connected);
+    } catch (error) {
+      console.error('Error checking calendar connection:', error);
+    }
+  };
 
   const fetchBookings = async () => {
     if (!userProfile) return;
@@ -107,6 +133,23 @@ export default function ClientBookings() {
         </View>
       </View>
 
+      {booking.status === 'confirmed' && (
+        <View style={styles.calendarSection}>
+          {booking.calendar_added_by_client ? (
+            <View style={[styles.calendarAdded, { backgroundColor: colors.success + '20' }]}>
+              <CalendarPlus color={colors.success} size={16} />
+              <Text style={[styles.calendarAddedText, { color: colors.success }]}>
+                Added to Google Calendar
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.calendarHint, { color: colors.textSecondary }]}>
+              Add this session to your Google Calendar using the notification below
+            </Text>
+          )}
+        </View>
+      )}
+
       {booking.client_notes && (
         <View style={styles.notesSection}>
           <Text style={[styles.notesLabel, { color: colors.text }]}>Notes:</Text>
@@ -116,40 +159,64 @@ export default function ClientBookings() {
     </TouchableOpacity>
   );
 
+  // Separate confirmed bookings for notification cards
+  const confirmedBookings = bookings.filter(booking => booking.status === 'confirmed');
+
   if (loading) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading bookings...</Text>
-      </View>
-    );
+    return <ClientBookingsSkeleton />;
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>My Bookings</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {bookings.length} upcoming sessions
-        </Text>
-      </View>
-
-      {bookings.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Calendar color={colors.textSecondary} size={48} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No bookings yet</Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            Find a trainer and book your first session
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>My Bookings</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {bookings.length} upcoming sessions
           </Text>
         </View>
-      ) : (
-        <FlatList
-          data={bookings}
-          renderItem={renderBookingCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.bookingsList}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+
+        {/* Confirmed Bookings with Calendar Integration */}
+        {confirmedBookings.length > 0 && (
+          <View style={styles.notificationsSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Confirmed Sessions</Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+              Add these sessions to your Google Calendar
+            </Text>
+            {confirmedBookings.map((booking) => (
+              <BookingNotificationCard
+                key={booking.id}
+                booking={booking}
+                userRole="client"
+                onCalendarAdded={fetchBookings}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* All Bookings List */}
+        <View style={styles.bookingsSection}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>All Bookings</Text>
+          
+          {bookings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Calendar color={colors.textSecondary} size={48} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No bookings yet</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                Find a trainer and book your first session
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.bookingsList}>
+              {bookings.map((booking) => (
+                <View key={booking.id}>
+                  {renderBookingCard({ item: booking })}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -173,9 +240,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 16,
-  },
-  loadingText: {
     fontSize: 16,
   },
   emptyState: {
@@ -258,5 +322,39 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   notesText: {
     fontSize: 14,
+  },
+  calendarSection: {
+    marginTop: 12,
+  },
+  calendarAdded: {
+    padding: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  calendarAddedText: {
+    fontSize: 14,
+  },
+  calendarHint: {
+    fontSize: 14,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  notificationsSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  bookingsSection: {
+    marginBottom: 20,
   },
 });

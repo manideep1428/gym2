@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Platform, ToastAndroid } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { supabase, TrainerAvailability } from '@/lib/supabase';
-import { ChevronLeft, Clock, Plus, X, Trash2, ChevronRight, ChevronDown, Sunrise, Sun, Sunset, Moon } from 'lucide-react-native';
+import { ChevronLeft, Clock, Plus, X, Trash2, ChevronRight, Sunrise, Sun, Sunset } from 'lucide-react-native';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 
 export default function TrainerAvailabilityScreen() {
   const { colors } = useTheme();
@@ -20,6 +21,16 @@ export default function TrainerAvailabilityScreen() {
   const [endTime, setEndTime] = useState('17:00');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'calendar' | 'weekly'>('calendar');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      setToastMsg(message);
+      setTimeout(() => setToastMsg(null), 2000);
+    }
+  };
 
   // Time presets for easy selection
   const timePresets = [
@@ -62,7 +73,7 @@ export default function TrainerAvailabilityScreen() {
 
     // Validate time range
     if (startTime >= endTime) {
-      Alert.alert('Invalid Time Range', 'End time must be after start time');
+      showToast('End time must be after start time');
       return;
     }
 
@@ -79,12 +90,12 @@ export default function TrainerAvailabilityScreen() {
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Availability added successfully!');
+      showToast('Availability added');
       setShowAddModal(false);
       resetModalState();
       fetchAvailability();
     } catch (error) {
-      Alert.alert('Error', 'Failed to add availability');
+      showToast('Failed to add availability');
       console.error('Add availability error:', error);
     }
   };
@@ -144,10 +155,10 @@ export default function TrainerAvailabilityScreen() {
       );
 
       await Promise.all(promises);
-      Alert.alert('Success', 'Weekday schedule added successfully!');
+      showToast('Weekday schedule added');
       fetchAvailability();
     } catch (error) {
-      Alert.alert('Error', 'Failed to setup schedule');
+      showToast('Failed to setup schedule');
     }
   };
 
@@ -168,10 +179,10 @@ export default function TrainerAvailabilityScreen() {
       );
 
       await Promise.all(promises);
-      Alert.alert('Success', 'Weekend schedule added successfully!');
+      showToast('Weekend schedule added');
       fetchAvailability();
     } catch (error) {
-      Alert.alert('Error', 'Failed to setup schedule');
+      showToast('Failed to setup schedule');
     }
   };
 
@@ -194,7 +205,7 @@ export default function TrainerAvailabilityScreen() {
               if (error) throw error;
               fetchAvailability();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete availability');
+              showToast('Failed to delete availability');
             }
           },
         },
@@ -254,8 +265,29 @@ export default function TrainerAvailabilityScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading availability...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}> 
+        <View style={styles.header}> 
+          <SkeletonLoader width={160} height={20} borderRadius={6} />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <SkeletonLoader width={100} height={32} borderRadius={16} />
+            <SkeletonLoader width={40} height={40} borderRadius={20} />
+          </View>
+        </View>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={{ marginBottom: 16 }}>
+            <SkeletonLoader width={220} height={18} borderRadius={6} style={{ marginBottom: 12 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+              {[...Array(7)].map((_, i) => (
+                <SkeletonLoader key={i} width={40} height={40} borderRadius={20} />
+              ))}
+            </View>
+          </View>
+          {[...Array(3)].map((_, idx) => (
+            <View key={idx} style={{ marginBottom: 16 }}>
+              <SkeletonLoader width={'100%'} height={60} borderRadius={12} />
+            </View>
+          ))}
+        </ScrollView>
       </View>
     );
   }
@@ -573,6 +605,11 @@ export default function TrainerAvailabilityScreen() {
           </View>
         </View>
       </Modal>
+      {toastMsg && (
+        <View style={[styles.toast, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+          <Text style={{ color: colors.text }}>{toastMsg}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -906,5 +943,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20,
+    right: 20,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
   },
 });

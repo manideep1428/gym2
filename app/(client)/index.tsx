@@ -114,6 +114,10 @@ export default function ClientHome() {
     </View>
   );
 
+  if (loading) {
+    return <ClientDashboardSkeleton />;
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}

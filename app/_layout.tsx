@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { setupCrashHandlers } from '@/utils/crashHandler';
+import NotificationInitializer from '@/components/NotificationInitializer';
 
 export default function RootLayout() {
   useFrameworkReady();
@@ -21,6 +22,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
+            <NotificationInitializer />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="auth" />

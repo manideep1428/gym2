@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } f
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
-import { User, Moon, Sun, LogOut, CreditCard as Edit, Settings } from 'lucide-react-native';
+import { User, Moon, Sun, LogOut, CreditCard as Edit, Settings, Bell } from 'lucide-react-native';
+import GoogleCalendarConnection from '@/components/GoogleCalendarConnection';
 
 export default function ClientAccount() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -52,6 +53,12 @@ export default function ClientAccount() {
           </TouchableOpacity>
         </View>
 
+        {/* Google Calendar Integration */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Calendar Integration</Text>
+          <GoogleCalendarConnection />
+        </View>
+
         {/* Settings Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Settings</Text>
@@ -68,6 +75,16 @@ export default function ClientAccount() {
               thumbColor={isDark ? '#FFFFFF' : '#FFFFFF'}
             />
           </View>
+
+          <TouchableOpacity 
+            style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push('/(client)/notification-settings')}
+          >
+            <View style={styles.settingInfo}>
+              <Bell color={colors.textSecondary} size={20} />
+              <Text style={[styles.settingText, { color: colors.text }]}>Notification Settings</Text>
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.settingInfo}>
