@@ -4,10 +4,13 @@ import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Google Calendar API configuration
-const GOOGLE_CLIENT_ID = "446928845689-b6ml0pbcdv0a0cq05mqter9099pumlji.apps.googleusercontent.com";
-const GOOGLE_CLIENT_SECRET = "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";
-const REDIRECT_URI = AuthSession.makeRedirectUri({  scheme: "myapp",  // 👈 works for prod (deep link)
-    path: "redirect",});
+// These should be loaded from environment variables in production
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || "446928845689-b6ml0pbcdv0a0cq05mqter9099pumlji.apps.googleusercontent.com";
+const GOOGLE_CLIENT_SECRET = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET || "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";
+const REDIRECT_URI = AuthSession.makeRedirectUri({
+  scheme: process.env.EXPO_PUBLIC_SCHEME || "gym2",
+  path: "redirect",
+});
 
 const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar',
@@ -50,7 +53,7 @@ class GoogleCalendarService {
   async authenticateWithGoogle(): Promise<GoogleCalendarTokens | null> {
     try {
       const request = new AuthSession.AuthRequest({
-        clientId: GOOGLE_CLIENT_ID!,
+        clientId: GOOGLE_CLIENT_ID,
         scopes: GOOGLE_CALENDAR_SCOPES,
         redirectUri: REDIRECT_URI,
         responseType: AuthSession.ResponseType.Code,
@@ -84,8 +87,8 @@ class GoogleCalendarService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          client_id: GOOGLE_CLIENT_ID!,
-          client_secret: GOOGLE_CLIENT_SECRET!,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
           code,
           grant_type: 'authorization_code',
           redirect_uri: REDIRECT_URI,
@@ -170,8 +173,8 @@ class GoogleCalendarService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          client_id: GOOGLE_CLIENT_ID!,
-          client_secret: GOOGLE_CLIENT_SECRET!,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
           refresh_token: refreshToken,
           grant_type: 'refresh_token',
         }).toString(),

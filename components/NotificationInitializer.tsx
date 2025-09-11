@@ -25,7 +25,6 @@ export default function NotificationInitializer() {
         await notificationService.registerForPushNotifications(userProfile!.id);
       } catch (error) {
         // User may have denied permissions - this is okay
-        console.log('Push notifications not enabled:', error);
       }
       
       // Schedule reminders for existing confirmed bookings

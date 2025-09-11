@@ -54,10 +54,10 @@ export default function TrainerSettings() {
         </View>
 
         {/* Google Calendar Integration */}
-        {/* <View style={styles.section}>
+        <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Calendar Integration</Text>
           <GoogleCalendarConnection />
-        </View> */}
+        </View>
 
         {/* Appearance Section */}
         <View style={styles.section}>

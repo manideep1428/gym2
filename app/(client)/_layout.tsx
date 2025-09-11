@@ -73,7 +73,7 @@ export default function ClientTabLayout() {
         options={{
           href: null,
         }}
-      />{' '}
+      />
       <Tabs.Screen
         name="notification-settings"
         options={{

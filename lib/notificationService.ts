@@ -424,12 +424,10 @@ class NotificationService {
   initializeNotificationListeners(): void {
     // Handle notification received while app is in foreground
     Notifications.addNotificationReceivedListener((notification) => {
-      console.log('Notification received:', notification);
     });
 
     // Handle notification tapped
     Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('Notification tapped:', response);
       const data = response.notification.request.content.data as unknown as NotificationData;
       
       // Handle navigation based on notification type
