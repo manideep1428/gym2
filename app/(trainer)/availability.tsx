@@ -19,6 +19,7 @@ export default function TrainerAvailabilityScreen() {
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
+  const [sessionDurations, setSessionDurations] = useState<number[]>([30, 60]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'calendar' | 'weekly' | 'grid'>('grid');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -145,6 +146,7 @@ export default function TrainerAvailabilityScreen() {
           start_time: startTime + ':00',
           end_time: endTime + ':00',
           is_recurring: true,
+          session_durations: sessionDurations,
         });
 
       if (error) throw error;
@@ -164,6 +166,7 @@ export default function TrainerAvailabilityScreen() {
     setSelectedDay(1);
     setStartTime('09:00');
     setEndTime('17:00');
+    setSessionDurations([30, 60]);
   };
 
   const applyTimePreset = (preset: typeof timePresets[0]) => {
@@ -812,6 +815,28 @@ export default function TrainerAvailabilityScreen() {
       position: 'absolute',
       backgroundColor: colors.primary,
     },
+    durationOption: {
+      flex: 1,
+      minWidth: '18%',
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginHorizontal: 2,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    durationOptionText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    durationsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      justifyContent: 'space-between',
+    },
   });
 
   if (loading) {
@@ -1163,6 +1188,40 @@ export default function TrainerAvailabilityScreen() {
               <Text style={styles.timeHint}>
                 Tap preset buttons above for quick setup, or customize times here
               </Text>
+            </View>
+
+            {/* Session Durations */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Session Durations (minutes)</Text>
+              <Text style={[styles.formLabel, { fontSize: 14, fontWeight: '400', marginBottom: 12, color: colors.textSecondary }]}>
+                Select the session lengths clients can book during this time slot
+              </Text>
+              <View style={styles.durationsGrid}>
+                {[30, 45, 60, 90, 120].map((duration) => (
+                  <TouchableOpacity
+                    key={duration}
+                    style={[
+                      styles.durationOption,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                      sessionDurations.includes(duration) && { backgroundColor: colors.primary, borderColor: colors.primary }
+                    ]}
+                    onPress={() => {
+                      if (sessionDurations.includes(duration)) {
+                        setSessionDurations(sessionDurations.filter(d => d !== duration));
+                      } else {
+                        setSessionDurations([...sessionDurations, duration].sort((a, b) => a - b));
+                      }
+                    }}
+                  >
+                    <Text style={[
+                      styles.durationOptionText,
+                      { color: sessionDurations.includes(duration) ? '#FFFFFF' : colors.text }
+                    ]}>
+                      {duration} min
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             <TouchableOpacity

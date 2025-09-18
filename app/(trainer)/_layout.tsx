@@ -78,6 +78,12 @@ export default function TrainerTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="client-requests"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
         name="availability"
         options={{
           href: null, // Hide from tab bar

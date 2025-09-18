@@ -1,21 +1,38 @@
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Conditionally import Google Signin to avoid issues in Expo Go
+let GoogleSignin: any = null;
+let statusCodes: any = null;
+
+try {
+  const googleSigninModule = require('@react-native-google-signin/google-signin');
+  GoogleSignin = googleSigninModule.GoogleSignin;
+  statusCodes = googleSigninModule.statusCodes;
+} catch (error) {
+  console.warn('Google Signin not available (likely in Expo Go):', error);
+}
+
 // Google Calendar API configuration
 // These should be loaded from environment variables in production
-const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || "446928845689-b6ml0pbcdv0a0cq05mqter9099pumlji.apps.googleusercontent.com";
-const GOOGLE_CLIENT_SECRET = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET || "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";
-const REDIRECT_URI = AuthSession.makeRedirectUri({
-  scheme: process.env.EXPO_PUBLIC_SCHEME || "gym2",
-  path: "redirect",
-});
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "446928845689-b6ml0pbcdv0a0cq05mqter9099pumlji.apps.googleusercontent.com";
 
 const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.readonly',
 ];
+
+// Initialize Google Sign-In only if available
+if (GoogleSignin) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    scopes: GOOGLE_CALENDAR_SCOPES,
+    offlineAccess: true,
+    hostedDomain: '',
+    forceCodeForRefreshToken: true,
+  });
+}
 
 export interface GoogleCalendarTokens {
   access_token: string;
@@ -49,62 +66,75 @@ export interface CalendarEvent {
 class GoogleCalendarService {
   private baseURL = 'https://www.googleapis.com/calendar/v3';
 
-  // Initialize Google OAuth
+  // Initialize Google OAuth using Google Sign-In
   async authenticateWithGoogle(): Promise<GoogleCalendarTokens | null> {
+    if (!GoogleSignin) {
+      throw new Error('Google Signin is not available in this environment (Expo Go)');
+    }
+
     try {
-      const request = new AuthSession.AuthRequest({
-        clientId: GOOGLE_CLIENT_ID,
-        scopes: GOOGLE_CALENDAR_SCOPES,
-        redirectUri: REDIRECT_URI,
-        responseType: AuthSession.ResponseType.Code,
-        extraParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      });
-
-      const result = await request.promptAsync({
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-      });
-
-      if (result.type === 'success' && result.params.code) {
-        return await this.exchangeCodeForTokens(result.params.code);
+      // Check if device supports Google Play Services
+      await GoogleSignin.hasPlayServices();
+      
+      // Sign in user
+      const userInfo = await GoogleSignin.signIn();
+      
+      // Get access token
+      const tokens = await GoogleSignin.getTokens();
+      
+      if (tokens.accessToken) {
+        const googleTokens: GoogleCalendarTokens = {
+          access_token: tokens.accessToken,
+          refresh_token: tokens.refreshToken,
+          expires_in: 3600, // Default 1 hour, will be refreshed automatically
+          token_type: 'Bearer',
+        };
+        
+        await this.saveTokensToProfile(googleTokens);
+        return googleTokens;
       }
 
       return null;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Google Calendar authentication error:', error);
-      throw new Error('Failed to authenticate with Google Calendar');
+      
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        throw new Error('Sign in was cancelled');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        throw new Error('Sign in is already in progress');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        throw new Error('Google Play Services not available');
+      } else {
+        throw new Error('Failed to authenticate with Google Calendar');
+      }
     }
   }
 
-  // Exchange authorization code for tokens
-  private async exchangeCodeForTokens(code: string): Promise<GoogleCalendarTokens> {
+  // Check if user is already signed in
+  async isSignedIn(): Promise<boolean> {
+    if (!GoogleSignin) {
+      return false;
+    }
+
     try {
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: GOOGLE_CLIENT_ID,
-          client_secret: GOOGLE_CLIENT_SECRET,
-          code,
-          grant_type: 'authorization_code',
-          redirect_uri: REDIRECT_URI,
-        }).toString(),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to exchange code for tokens');
-      }
-
-      const tokens = await response.json();
-      await this.saveTokensToProfile(tokens);
-      return tokens;
+      const userInfo = await GoogleSignin.getCurrentUser();
+      return userInfo !== null;
     } catch (error) {
-      console.error('Token exchange error:', error);
-      throw error;
+      console.error('Error checking sign-in status:', error);
+      return false;
+    }
+  }
+
+  // Sign out user
+  async signOut(): Promise<void> {
+    if (!GoogleSignin) {
+      return;
+    }
+
+    try {
+      await GoogleSignin.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
     }
   }
 
@@ -135,61 +165,64 @@ class GoogleCalendarService {
 
   // Get valid access token (refresh if needed)
   async getValidAccessToken(): Promise<string | null> {
+    if (!GoogleSignin) {
+      return null;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      // Check if user is signed in with Google
+      const userInfo = await GoogleSignin.getCurrentUser();
+      if (!userInfo) return null;
 
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at, google_calendar_connected')
-        .eq('id', user.id)
-        .single();
-
-      if (error || !profile?.google_calendar_connected) return null;
-
-      // Check if token is expired
-      const expiresAt = new Date(profile.google_calendar_token_expires_at);
-      const now = new Date();
-
-      if (now >= expiresAt && profile.google_calendar_refresh_token) {
-        // Refresh token
-        const newTokens = await this.refreshAccessToken(profile.google_calendar_refresh_token);
-        return newTokens.access_token;
+      // Get fresh tokens from Google Sign-In
+      const tokens = await GoogleSignin.getTokens();
+      
+      if (tokens.accessToken) {
+        // Update tokens in database
+        const googleTokens: GoogleCalendarTokens = {
+          access_token: tokens.accessToken,
+          refresh_token: undefined, // Google Sign-In handles refresh automatically
+          expires_in: 3600,
+          token_type: 'Bearer',
+        };
+        
+        await this.saveTokensToProfile(googleTokens);
+        return tokens.accessToken;
       }
 
-      return profile.google_calendar_access_token;
+      return null;
     } catch (error) {
       console.error('Error getting access token:', error);
       return null;
     }
   }
 
-  // Refresh access token
-  private async refreshAccessToken(refreshToken: string): Promise<GoogleCalendarTokens> {
+  // Refresh tokens using Google Sign-In (handled automatically)
+  private async refreshTokens(): Promise<string | null> {
+    if (!GoogleSignin) {
+      return null;
+    }
+
     try {
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: GOOGLE_CLIENT_ID,
-          client_secret: GOOGLE_CLIENT_SECRET,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-        }).toString(),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to refresh token');
+      // Google Sign-In handles token refresh automatically
+      const tokens = await GoogleSignin.getTokens();
+      
+      if (tokens.accessToken) {
+        const googleTokens: GoogleCalendarTokens = {
+          access_token: tokens.accessToken,
+          refresh_token: undefined,
+          expires_in: 3600,
+          token_type: 'Bearer',
+        };
+        
+        await this.saveTokensToProfile(googleTokens);
+        return tokens.accessToken;
       }
-
-      const tokens = await response.json();
-      await this.saveTokensToProfile(tokens);
-      return tokens;
+      
+      return null;
     } catch (error) {
       console.error('Token refresh error:', error);
-      throw error;
+      return null;
     }
   }
 

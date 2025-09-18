@@ -83,7 +83,7 @@ export default function EditClientProfile() {
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Edit Profile</Text>
         <TouchableOpacity onPress={handleSave} disabled={loading} style={styles.saveButton}>
-          <Save color={loading ? colors.textSecondary : colors.primary} size={24} />
+          Save
         </TouchableOpacity>
       </View>
 

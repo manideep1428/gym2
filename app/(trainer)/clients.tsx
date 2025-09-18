@@ -3,12 +3,14 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView }
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile, Booking } from '@/lib/supabase';
-import { Users, User, Calendar, TrendingUp, X } from 'lucide-react-native';
+import { Users, User, Calendar, TrendingUp, X, UserPlus } from 'lucide-react-native';
 import { TrainerClientsSkeleton } from '@/components/SkeletonLoader';
+import { useRouter } from 'expo-router';
 
 export default function TrainerClients() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
+  const router = useRouter();
   const [clients, setClients] = useState<Profile[]>([]);
   const [selectedClient, setSelectedClient] = useState<Profile | null>(null);
   const [clientBookings, setClientBookings] = useState<Booking[]>([]);
@@ -98,10 +100,19 @@ export default function TrainerClients() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>My Clients</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {clients.length} active clients
-        </Text>
+        <View style={styles.headerContent}>
+          <Text style={[styles.title, { color: colors.text }]}>My Clients</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {clients.length} active clients
+          </Text>
+        </View>
+        
+        <TouchableOpacity
+          style={[styles.requestsButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/(trainer)/client-requests')}
+        >
+          <UserPlus color="#FFFFFF" size={20} />
+        </TouchableOpacity>
       </View>
 
       {clients.length === 0 ? (
@@ -215,8 +226,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 20,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  requestsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 28,

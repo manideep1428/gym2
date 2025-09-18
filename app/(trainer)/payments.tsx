@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, PaymentRequest, Profile } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
-import { CreditCard, Plus, DollarSign, User, Calendar, X, Search } from 'lucide-react-native';
+import { CreditCard, Plus, DollarSign, User, Calendar, X, Search, Heart } from 'lucide-react-native';
 
 export default function TrainerPayments() {
   const { colors } = useTheme();
@@ -65,6 +65,18 @@ export default function TrainerPayments() {
       if (allClientsError) throw allClientsError;
       setAllClients(allClientsData || []);
 
+      // Get dedicated clients (approved relationships)
+      const { data: dedicatedClientsData, error: dedicatedError } = await supabase
+        .from('client_trainer_relationships')
+        .select(`
+          client_id,
+          client:profiles!client_trainer_relationships_client_id_fkey(*)
+        `)
+        .eq('trainer_id', userProfile.id)
+        .eq('status', 'approved');
+
+      if (dedicatedError) throw dedicatedError;
+
       // Get clients who have had bookings with this trainer
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
@@ -74,17 +86,38 @@ export default function TrainerPayments() {
       if (bookingsError) throw bookingsError;
 
       const uniqueClientIds = [...new Set(bookingsData?.map(b => b.client_id) || [])];
+      const dedicatedClientIds = dedicatedClientsData?.map(rel => rel.client_id) || [];
 
-      if (uniqueClientIds.length > 0) {
+      // Combine dedicated clients and booking clients, prioritizing dedicated clients
+      const allClientIds = [...new Set([...dedicatedClientIds, ...uniqueClientIds])];
+
+      if (allClientIds.length > 0) {
         const { data: clientsData, error: clientsError } = await supabase
           .from('profiles')
           .select('*')
-          .in('id', uniqueClientIds)
+          .in('id', allClientIds)
           .eq('role', 'client')
           .order('name');
 
         if (clientsError) throw clientsError;
-        setClients(clientsData || []);
+        
+        // Sort clients to show dedicated clients first
+        const sortedClients = (clientsData || []).sort((a, b) => {
+          const aIsDedicated = dedicatedClientIds.includes(a.id);
+          const bIsDedicated = dedicatedClientIds.includes(b.id);
+          
+          if (aIsDedicated && !bIsDedicated) return -1;
+          if (!aIsDedicated && bIsDedicated) return 1;
+          return a.name.localeCompare(b.name);
+        });
+        
+        // Add isDedicated flag to clients
+        const clientsWithFlags = sortedClients.map(client => ({
+          ...client,
+          isDedicated: dedicatedClientIds.includes(client.id)
+        }));
+        
+        setClients(clientsWithFlags);
       }
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -330,12 +363,20 @@ export default function TrainerPayments() {
                     }}
                   >
                     <View style={styles.clientOptionContent}>
-                      <Text style={[
-                        styles.clientOptionText,
-                        { color: selectedClient === client.id ? colors.primary : colors.text }
-                      ]}>
-                        {client.name}
-                      </Text>
+                      <View style={styles.clientOptionHeader}>
+                        <Text style={[
+                          styles.clientOptionText,
+                          { color: selectedClient === client.id ? colors.primary : colors.text }
+                        ]}>
+                          {client.name}
+                        </Text>
+                        {(client as any).isDedicated && (
+                          <View style={styles.dedicatedBadge}>
+                            <Heart color="#E91E63" size={12} fill="#E91E63" />
+                            <Text style={[styles.dedicatedText, { color: '#E91E63' }]}>Dedicated</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={[
                         styles.clientOptionEmail,
                         { color: colors.textSecondary }
@@ -561,12 +602,30 @@ const createStyles = (colors: any) => StyleSheet.create({
   clientOptionContent: {
     gap: 4,
   },
+  clientOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   clientOptionText: {
     fontSize: 14,
     fontWeight: '500',
   },
   clientOptionEmail: {
     fontSize: 12,
+  },
+  dedicatedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: '#E91E6320',
+  },
+  dedicatedText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   input: {
     borderWidth: 1,

@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase, Profile, TrainerAvailability } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
-import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X } from 'lucide-react-native';
+import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X, ChevronLeft, User, ChevronRight, Clock, MessageSquare, CalendarPlus, Sunrise, Sun, Sunset } from 'lucide-react-native';
+import { googleCalendarService } from '@/lib/googleCalendar';
 
 export default function BookSession() {
   const { colors } = useTheme();
@@ -23,8 +24,10 @@ export default function BookSession() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
-  const [step, setStep] = useState(1); // 1: Date, 2: Duration, 3: Time, 4: Notes
+  const [step, setStep] = useState(1);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+  const [addToCalendar, setAddToCalendar] = useState(false);
+  const [isCalendarConnected, setIsCalendarConnected] = useState(false);
 
   const styles = createStyles(colors);
 
@@ -32,8 +35,22 @@ export default function BookSession() {
     if (trainerId) {
       fetchTrainerData();
       fetchAvailability();
+      checkCalendarConnection();
     }
   }, [trainerId]);
+
+  const checkCalendarConnection = async () => {
+    try {
+      const connected = await googleCalendarService.isConnected();
+      const signedIn = await googleCalendarService.isSignedIn();
+      setIsCalendarConnected(connected && signedIn);
+      setAddToCalendar(connected && signedIn);
+    } catch (error) {
+      console.error('Error checking calendar connection:', error);
+      setIsCalendarConnected(false);
+      setAddToCalendar(false);
+    }
+  };
 
   const fetchTrainerData = async () => {
     try {
@@ -113,7 +130,11 @@ export default function BookSession() {
       const availStart = new Date(`2000-01-01T${avail.start_time}`);
       const availEnd = new Date(`2000-01-01T${avail.end_time}`);
 
-      // Generate 15-minute intervals within this availability window
+      // Check if the selected duration is available for this time slot
+      const allowedDurations = avail.session_durations || [30, 60];
+      if (!allowedDurations.includes(sessionDuration)) continue;
+
+      // Generate time slots within this availability window
       let currentTime = new Date(availStart);
 
       while (currentTime < availEnd) {
@@ -137,7 +158,7 @@ export default function BookSession() {
           }
         }
 
-        // Move to next 15-minute interval
+        // Move to next time slot (15-minute intervals)
         currentTime.setMinutes(currentTime.getMinutes() + 15);
       }
     }
@@ -181,6 +202,29 @@ export default function BookSession() {
     }
 
     return dates.slice(0, 21); // Show 3 weeks
+  };
+
+  const getAvailableDurations = (): number[] => {
+    if (!selectedDate || !trainerId) return [30, 60, 90, 120];
+
+    const dayOfWeek = new Date(selectedDate).getDay();
+
+    // Get trainer's availability for this day
+    const dayAvailability = availability.filter(avail =>
+      (avail.day_of_week === dayOfWeek && avail.is_recurring && !avail.is_blocked) ||
+      (avail.specific_date === selectedDate && !avail.is_blocked)
+    );
+
+    if (dayAvailability.length === 0) return [30, 60, 90, 120];
+
+    // Collect all unique allowed durations from the availability slots
+    const allowedDurations = new Set<number>();
+    dayAvailability.forEach(avail => {
+      const durations = avail.session_durations || [30, 60];
+      durations.forEach(duration => allowedDurations.add(duration));
+    });
+
+    return Array.from(allowedDurations).sort((a, b) => a - b);
   };
 
   const getCurrentDuration = () => {
@@ -230,6 +274,14 @@ export default function BookSession() {
       return;
     }
 
+    // Validate that the selected duration is allowed for this trainer/time
+    const sessionDuration = getCurrentDuration();
+    const availableDurations = getAvailableDurations();
+    if (!availableDurations.includes(sessionDuration)) {
+      Alert.alert('Error', `This trainer doesn't offer ${sessionDuration}-minute sessions on the selected date. Please choose a different duration.`);
+      return;
+    }
+
     setBooking(true);
     try {
       // Calculate end time using current duration
@@ -264,9 +316,33 @@ export default function BookSession() {
         sessionTime
       );
 
+      // Add to Google Calendar if enabled
+      let calendarEventId = null;
+      if (addToCalendar && isCalendarConnected) {
+        try {
+          const { data: bookingData } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('client_id', userProfile.id)
+            .eq('trainer_id', trainer.id)
+            .eq('date', selectedDate)
+            .eq('start_time', selectedTime)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (bookingData) {
+            calendarEventId = await googleCalendarService.addBookingToCalendar(bookingData, 'client');
+          }
+        } catch (calendarError) {
+          console.error('Error adding to calendar:', calendarError);
+          // Don't fail the booking if calendar sync fails
+        }
+      }
+
       Alert.alert(
         'Booking Requested!',
-        'Your session request has been sent to the trainer. Multiple clients can request the same time slot - the trainer will choose who to confirm.',
+        `Your session request has been sent to the trainer. Multiple clients can request the same time slot - the trainer will choose who to confirm.${calendarEventId ? '\n\n✅ Added to your Google Calendar!' : ''}`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error: any) {
@@ -419,7 +495,7 @@ export default function BookSession() {
 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Duration</Text>
             <View style={styles.durationGrid}>
-              {[30, 60, 90, 120].map((mins) => (
+              {getAvailableDurations().map((mins) => (
                 <TouchableOpacity
                   key={mins}
                   style={[
@@ -445,26 +521,28 @@ export default function BookSession() {
                 </TouchableOpacity>
               ))}
 
-              {/* Custom Duration */}
-              <TouchableOpacity
-                style={[
-                  styles.durationCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                  duration === 0 && { backgroundColor: colors.primary, borderColor: colors.primary }
-                ]}
-                onPress={() => setDuration(0)}
-              >
-                <Clock
-                  color={duration === 0 ? '#FFFFFF' : colors.primary}
-                  size={24}
-                />
-                <Text style={[
-                  styles.durationCardText,
-                  { color: duration === 0 ? '#FFFFFF' : colors.text }
-                ]}>
-                  Custom
-                </Text>
-              </TouchableOpacity>
+              {/* Custom Duration - only show if trainer allows custom */}
+              {getAvailableDurations().length === 0 && (
+                <TouchableOpacity
+                  style={[
+                    styles.durationCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                    duration === 0 && { backgroundColor: colors.primary, borderColor: colors.primary }
+                  ]}
+                  onPress={() => setDuration(0)}
+                >
+                  <Clock
+                    color={duration === 0 ? '#FFFFFF' : colors.primary}
+                    size={24}
+                  />
+                  <Text style={[
+                    styles.durationCardText,
+                    { color: duration === 0 ? '#FFFFFF' : colors.text }
+                  ]}>
+                    Custom
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {duration === 0 && (
@@ -519,51 +597,219 @@ export default function BookSession() {
 
             {availableTimeSlots.length === 0 ? (
               <View style={[styles.noSlotsContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Clock color={colors.textSecondary} size={32} />
+                <Clock color={colors.textSecondary} size={48} />
                 <Text style={[styles.noSlotsText, { color: colors.text }]}>No available time slots</Text>
                 <Text style={[styles.noSlotsSubtext, { color: colors.textSecondary }]}>
                   Try selecting a different duration or date
                 </Text>
               </View>
             ) : (
-              <View style={styles.timeGrid}>
-                {availableTimeSlots.map((time) => {
-                  const isSelected = selectedTime === time;
-
-                  // Check if this slot has existing pending requests
-                  const hasPendingRequests = existingBookings.some(booking =>
-                    booking.start_time === time && booking.status === 'pending'
-                  );
+              <View style={styles.timeSlotsContainer}>
+                {/* Time slots organized by morning/afternoon/evening */}
+                {(() => {
+                  const morningSlots = availableTimeSlots.filter(time => {
+                    const hour = parseInt(time.split(':')[0]);
+                    return hour >= 6 && hour < 12;
+                  });
+                  const afternoonSlots = availableTimeSlots.filter(time => {
+                    const hour = parseInt(time.split(':')[0]);
+                    return hour >= 12 && hour < 17;
+                  });
+                  const eveningSlots = availableTimeSlots.filter(time => {
+                    const hour = parseInt(time.split(':')[0]);
+                    return hour >= 17 && hour <= 23;
+                  });
 
                   return (
-                    <TouchableOpacity
-                      key={time}
-                      style={[
-                        styles.timeOption,
-                        { backgroundColor: colors.surface, borderColor: colors.border },
-                        isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
-                        hasPendingRequests && { borderColor: colors.warning, borderWidth: 2 }
-                      ]}
-                      onPress={() => setSelectedTime(time)}
-                    >
-                      <Text style={[
-                        styles.timeText,
-                        { color: isSelected ? '#FFFFFF' : colors.text }
-                      ]}>
-                        {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
-                      </Text>
-                      {hasPendingRequests && (
-                        <Text style={[styles.pendingIndicator, { color: colors.warning }]}>
-                          Requested
-                        </Text>
+                    <>
+                      {morningSlots.length > 0 && (
+                        <View style={styles.timeSection}>
+                          <View style={styles.timeSectionHeader}>
+                            <Sunrise color={colors.primary} size={20} />
+                            <Text style={[styles.timeSectionTitle, { color: colors.text }]}>
+                              Morning ({morningSlots.length} slots)
+                            </Text>
+                          </View>
+                          <View style={styles.timeGrid}>
+                            {morningSlots.map((time) => {
+                              const isSelected = selectedTime === time;
+                              const hasPendingRequests = existingBookings.some(booking =>
+                                booking.start_time === time && booking.status === 'pending'
+                              );
+
+                              return (
+                                <TouchableOpacity
+                                  key={time}
+                                  style={[
+                                    styles.timeSlotCard,
+                                    {
+                                      backgroundColor: isSelected ? colors.primary :
+                                                     hasPendingRequests ? colors.warning + '15' : colors.surface,
+                                      borderColor: isSelected ? colors.primary :
+                                                 hasPendingRequests ? colors.warning : colors.border,
+                                      borderWidth: isSelected || hasPendingRequests ? 2 : 1
+                                    }
+                                  ]}
+                                  onPress={() => setSelectedTime(time)}
+                                >
+                                  <View style={styles.timeSlotContent}>
+                                    <Text style={[
+                                      styles.timeSlotTime,
+                                      { color: isSelected ? '#FFFFFF' : colors.text }
+                                    ]}>
+                                      {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true,
+                                      })}
+                                    </Text>
+                                    <Text style={[
+                                      styles.timeSlotPeriod,
+                                      { color: isSelected ? '#FFFFFF' + 'CC' : colors.textSecondary }
+                                    ]}>
+                                      {getCurrentDuration()} min session
+                                    </Text>
+                                  </View>
+                                  {hasPendingRequests && (
+                                    <View style={styles.pendingBadge}>
+                                      <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>
+                                        ⚠️ Requested
+                                      </Text>
+                                    </View>
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
                       )}
-                    </TouchableOpacity>
+
+                      {afternoonSlots.length > 0 && (
+                        <View style={styles.timeSection}>
+                          <View style={styles.timeSectionHeader}>
+                            <Sun color={colors.primary} size={20} />
+                            <Text style={[styles.timeSectionTitle, { color: colors.text }]}>
+                              Afternoon ({afternoonSlots.length} slots)
+                            </Text>
+                          </View>
+                          <View style={styles.timeGrid}>
+                            {afternoonSlots.map((time) => {
+                              const isSelected = selectedTime === time;
+                              const hasPendingRequests = existingBookings.some(booking =>
+                                booking.start_time === time && booking.status === 'pending'
+                              );
+
+                              return (
+                                <TouchableOpacity
+                                  key={time}
+                                  style={[
+                                    styles.timeSlotCard,
+                                    {
+                                      backgroundColor: isSelected ? colors.primary :
+                                                     hasPendingRequests ? colors.warning + '15' : colors.surface,
+                                      borderColor: isSelected ? colors.primary :
+                                                 hasPendingRequests ? colors.warning : colors.border,
+                                      borderWidth: isSelected || hasPendingRequests ? 2 : 1
+                                    }
+                                  ]}
+                                  onPress={() => setSelectedTime(time)}
+                                >
+                                  <View style={styles.timeSlotContent}>
+                                    <Text style={[
+                                      styles.timeSlotTime,
+                                      { color: isSelected ? '#FFFFFF' : colors.text }
+                                    ]}>
+                                      {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true,
+                                      })}
+                                    </Text>
+                                    <Text style={[
+                                      styles.timeSlotPeriod,
+                                      { color: isSelected ? '#FFFFFF' + 'CC' : colors.textSecondary }
+                                    ]}>
+                                      {getCurrentDuration()} min session
+                                    </Text>
+                                  </View>
+                                  {hasPendingRequests && (
+                                    <View style={styles.pendingBadge}>
+                                      <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>
+                                        ⚠️ Requested
+                                      </Text>
+                                    </View>
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
+
+                      {eveningSlots.length > 0 && (
+                        <View style={styles.timeSection}>
+                          <View style={styles.timeSectionHeader}>
+                            <Sunset color={colors.primary} size={20} />
+                            <Text style={[styles.timeSectionTitle, { color: colors.text }]}>
+                              Evening ({eveningSlots.length} slots)
+                            </Text>
+                          </View>
+                          <View style={styles.timeGrid}>
+                            {eveningSlots.map((time) => {
+                              const isSelected = selectedTime === time;
+                              const hasPendingRequests = existingBookings.some(booking =>
+                                booking.start_time === time && booking.status === 'pending'
+                              );
+
+                              return (
+                                <TouchableOpacity
+                                  key={time}
+                                  style={[
+                                    styles.timeSlotCard,
+                                    {
+                                      backgroundColor: isSelected ? colors.primary :
+                                                     hasPendingRequests ? colors.warning + '15' : colors.surface,
+                                      borderColor: isSelected ? colors.primary :
+                                                 hasPendingRequests ? colors.warning : colors.border,
+                                      borderWidth: isSelected || hasPendingRequests ? 2 : 1
+                                    }
+                                  ]}
+                                  onPress={() => setSelectedTime(time)}
+                                >
+                                  <View style={styles.timeSlotContent}>
+                                    <Text style={[
+                                      styles.timeSlotTime,
+                                      { color: isSelected ? '#FFFFFF' : colors.text }
+                                    ]}>
+                                      {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true,
+                                      })}
+                                    </Text>
+                                    <Text style={[
+                                      styles.timeSlotPeriod,
+                                      { color: isSelected ? '#FFFFFF' + 'CC' : colors.textSecondary }
+                                    ]}>
+                                      {getCurrentDuration()} min session
+                                    </Text>
+                                  </View>
+                                  {hasPendingRequests && (
+                                    <View style={styles.pendingBadge}>
+                                      <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>
+                                        ⚠️ Requested
+                                      </Text>
+                                    </View>
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </View>
             )}
 
@@ -637,6 +883,39 @@ export default function BookSession() {
               numberOfLines={4}
               textAlignVertical="top"
             />
+
+            {/* Google Calendar Integration Option */}
+            {isCalendarConnected && (
+              <View style={[styles.calendarOption, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.calendarOptionHeader}>
+                  <CalendarPlus color={colors.primary} size={20} />
+                  <Text style={[styles.calendarOptionTitle, { color: colors.text }]}>
+                    Add to Google Calendar
+                  </Text>
+                </View>
+                <Text style={[styles.calendarOptionDescription, { color: colors.textSecondary }]}>
+                  Automatically sync this session to your Google Calendar with reminders
+                </Text>
+                <TouchableOpacity
+                  style={styles.calendarToggle}
+                  onPress={() => setAddToCalendar(!addToCalendar)}
+                >
+                  <View style={[
+                    styles.toggleSwitch,
+                    { backgroundColor: addToCalendar ? colors.primary : colors.border }
+                  ]}>
+                    <View style={[
+                      styles.toggleThumb,
+                      { backgroundColor: '#FFFFFF' },
+                      addToCalendar && styles.toggleThumbActive
+                    ]} />
+                  </View>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>
+                    {addToCalendar ? 'Enabled' : 'Disabled'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.bookButton, { backgroundColor: colors.primary }]}
@@ -1011,5 +1290,111 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  calendarOption: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  calendarOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  calendarOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  calendarOptionDescription: {
+    fontSize: 14,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  calendarToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  toggleSwitch: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    position: 'absolute',
+    left: 2,
+  },
+  toggleThumbActive: {
+    left: 24,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  timeSlotsContainer: {
+    gap: 24,
+  },
+  timeSection: {
+    marginBottom: 24,
+  },
+  timeSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  timeSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  timeSlotCard: {
+    flex: 1,
+    minWidth: '30%',
+    maxWidth: '48%',
+    borderRadius: 16,
+    padding: 16,
+    margin: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  timeSlotContent: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeSlotTime: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  timeSlotPeriod: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  pendingBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  pendingBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 });

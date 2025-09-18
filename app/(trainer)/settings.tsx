@@ -5,7 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { User, Moon, Sun, LogOut, Edit, Bell, Shield, Clock } from 'lucide-react-native';
-import GoogleCalendarConnection from '@/components/GoogleCalendarConnection';
+import GoogleCalendarIntegration from '@/components/GoogleCalendarIntegration';
 
 export default function TrainerSettings() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -56,7 +56,7 @@ export default function TrainerSettings() {
         {/* Google Calendar Integration */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Calendar Integration</Text>
-          <GoogleCalendarConnection />
+          <GoogleCalendarIntegration/>
         </View>
 
         {/* Appearance Section */}

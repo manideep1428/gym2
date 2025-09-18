@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface ThemeContextType {
+export interface ThemeContextType {
   isDark: boolean;
   toggleTheme: () => void;
   colors: {
     primary: string;
+    secondary: string;
+    accent: string;
     background: string;
     surface: string;
     text: string;
@@ -15,33 +17,43 @@ interface ThemeContextType {
     error: string;
     success: string;
     warning: string;
+    gradientStart: string;
+    gradientEnd: string;
   };
 }
 
 const lightTheme = {
-  primary: '#3C9BEE',
+  primary: '#6366F1',
+  secondary: '#8B5CF6',
+  accent: '#06B6D4',
   background: '#FFFFFF',
   surface: '#F8F9FA',
-  text: '#333333',
-  textSecondary: '#666666',
-  border: '#E1E5E9',
+  text: '#1F2937',
+  textSecondary: '#6B7280',
+  border: '#E5E7EB',
   card: '#FFFFFF',
   error: '#EF4444',
   success: '#10B981',
   warning: '#F59E0B',
+  gradientStart: '#667EEA',
+  gradientEnd: '#764BA2',
 };
 
 const darkTheme = {
-  primary: '#3C9BEE',
-  background: '#000000',
-  surface: '#1F201E',
-  text: '#FFFFFF',
-  textSecondary: '#CCCCCC',
-  border: '#404040',
-  card: '#2A2B29',
+  primary: '#818CF8',
+  secondary: '#A78BFA',
+  accent: '#22D3EE',
+  background: '#0F172A',
+  surface: '#1E293B',
+  text: '#F8FAFC',
+  textSecondary: '#CBD5E1',
+  border: '#334155',
+  card: '#1E293B',
   error: '#EF4444',
   success: '#10B981',
   warning: '#F59E0B',
+  gradientStart: '#4F46E5',
+  gradientEnd: '#7C3AED',
 };
 
 const ThemeContext = createContext<ThemeContextType>({} as ThemeContextType);

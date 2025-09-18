@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
-import { useTheme } from '@/contexts/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme, ThemeContextType } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
-import { User, Moon, Sun, LogOut, CreditCard as Edit, Settings, Bell } from 'lucide-react-native';
-import GoogleCalendarConnection from '@/components/GoogleCalendarConnection';
+import { User, Moon, Sun, LogOut, CreditCard as Edit, Settings, Bell, Pencil } from 'lucide-react-native';
+import GoogleCalendarIntegration from '@/components/GoogleCalendarIntegration';
 
 export default function ClientAccount() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -33,15 +34,24 @@ export default function ClientAccount() {
 
       <ScrollView style={styles.content}>
         {/* Profile Section */}
-        <View style={[styles.profileSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <LinearGradient
+          colors={[colors.card, colors.surface]}
+          style={[styles.profileSection, { borderColor: colors.border }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0.3 }}
+        >
           <View style={styles.profileInfo}>
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+            <LinearGradient
+              colors={[colors.gradientStart, colors.gradientEnd]}
+              style={styles.avatar}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
               <User color="#FFFFFF" size={32} />
-            </View>
+            </LinearGradient>
             <View style={styles.profileDetails}>
               <Text style={[styles.profileName, { color: colors.text }]}>{userProfile?.name}</Text>
-              <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>{userProfile?.email}</Text>
-              <Text style={[styles.profileRole, { color: colors.primary }]}>Client</Text>
+              <Text style={[styles.profileRole, { color: colors.accent }]}>Client</Text>
             </View>
           </View>
           
@@ -49,14 +59,14 @@ export default function ClientAccount() {
             style={styles.editProfileButton}
             onPress={() => router.push('/(client)/edit-profile')}
           >
-            <Edit color={colors.textSecondary} size={20} />
+            <Pencil color={colors.textSecondary} size={20} />
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
 
         {/* Google Calendar Integration */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Calendar Integration</Text>
-          <GoogleCalendarConnection />
+          <GoogleCalendarIntegration />
         </View>
 
         {/* Settings Section */}
@@ -86,12 +96,12 @@ export default function ClientAccount() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.settingInfo}>
               <Settings color={colors.textSecondary} size={20} />
               <Text style={[styles.settingText, { color: colors.text }]}>Preferences</Text>
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Account Actions */}
@@ -109,7 +119,7 @@ export default function ClientAccount() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: ThemeContextType['colors']) => StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 50,

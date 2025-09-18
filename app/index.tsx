@@ -11,16 +11,15 @@ export default function Index() {
 
 
   if (loading) {
-    return <LoadingScreen />;
+    return <LoadingScreen/>;
   }
 
   if (!user) {
     return <Redirect href="/auth" />;
   }
 
-  // Wait for profile to be loaded before redirecting
   if (!userProfile) {
-    return <LoadingScreen />;
+    return <LoadingScreen/>;
   }
 
   if (userProfile.role === 'trainer') {

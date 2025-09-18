@@ -1,17 +1,28 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Conditionally import expo-notifications to avoid issues in Expo Go
+let Notifications: any = null;
+
+try {
+  const notificationsModule = require('expo-notifications');
+  Notifications = notificationsModule;
+} catch (error) {
+  console.warn('expo-notifications not available (likely in Expo Go):', error);
+}
+
+// Configure notification behavior only if available
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export interface NotificationData extends Record<string, unknown> {
   type: 'booking_request' | 'booking_accepted' | 'booking_rejected' | 'session_reminder' | 'booking_cancelled' | 'payment_request' | 'payment_confirmation';
@@ -36,6 +47,11 @@ class NotificationService {
   }
 
   async requestPermissions(): Promise<boolean> {
+    if (!Notifications) {
+      console.warn('Notifications not available in this environment');
+      return false;
+    }
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -48,6 +64,11 @@ class NotificationService {
   }
 
   async getExpoPushToken(): Promise<string | null> {
+    if (!Notifications) {
+      console.warn('Notifications not available in this environment');
+      return null;
+    }
+
     try {
       const token = (await Notifications.getExpoPushTokenAsync()).data;
       return token;
@@ -81,6 +102,11 @@ class NotificationService {
   }
 
   async sendLocalNotification(title: string, body: string, data?: NotificationData): Promise<void> {
+    if (!Notifications) {
+      console.warn('Notifications not available in this environment');
+      return;
+    }
+
     await Notifications.scheduleNotificationAsync({
       content: {
         title,
@@ -99,6 +125,11 @@ class NotificationService {
     trainerName: string,
     clientName: string
   ): Promise<string | null> {
+    if (!Notifications) {
+      console.warn('Notifications not available in this environment');
+      return null;
+    }
+
     try {
       const reminderTime = new Date(sessionTime.getTime() - reminderMinutes * 60 * 1000);
       
@@ -122,7 +153,7 @@ class NotificationService {
         trigger: {
           type: 'date',
           date: reminderTime,
-        } as Notifications.DateTriggerInput,
+        } as any,
       });
 
       return notificationId;
@@ -133,6 +164,11 @@ class NotificationService {
   }
 
   async cancelScheduledNotification(notificationId: string): Promise<void> {
+    if (!Notifications) {
+      console.warn('Notifications not available in this environment');
+      return;
+    }
+
     try {
       await Notifications.cancelScheduledNotificationAsync(notificationId);
     } catch (error) {
@@ -422,12 +458,17 @@ class NotificationService {
 
   // Initialize notification listeners
   initializeNotificationListeners(): void {
+    if (!Notifications) {
+      console.warn('Notifications not available in this environment');
+      return;
+    }
+
     // Handle notification received while app is in foreground
-    Notifications.addNotificationReceivedListener((notification) => {
+    Notifications.addNotificationReceivedListener((notification: any) => {
     });
 
     // Handle notification tapped
-    Notifications.addNotificationResponseReceivedListener((response) => {
+    Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data as unknown as NotificationData;
       
       // Handle navigation based on notification type

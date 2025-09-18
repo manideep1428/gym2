@@ -112,7 +112,7 @@ export default function ClientTabLayout() {
           href: null, // Hide from tab bar
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="progress"
         options={{
           title: 'Progress',
@@ -120,7 +120,7 @@ export default function ClientTabLayout() {
             <TrendingUp color={color} size={iconSize} />
           ),
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="account"
         options={{

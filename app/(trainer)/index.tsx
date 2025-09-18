@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Calendar, Users, DollarSign, TrendingUp, Clock, Package2, Edit } from 'lucide-react-native';
+import { Calendar, Users, DollarSign, TrendingUp, Clock, Package2, Edit, UserPlus } from 'lucide-react-native';
 import { TrainerDashboardSkeleton } from '@/components/SkeletonLoader';
 
 interface DashboardStats {
@@ -13,6 +13,7 @@ interface DashboardStats {
   totalClients: number;
   pendingPayments: number;
   monthlyRevenue: number;
+  pendingClientRequests: number;
 }
 
 export default function TrainerDashboard() {
@@ -25,6 +26,7 @@ export default function TrainerDashboard() {
     totalClients: 0,
     pendingPayments: 0,
     monthlyRevenue: 0,
+    pendingClientRequests: 0,
   });
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +62,13 @@ export default function TrainerDashboard() {
 
       const pendingAmount = paymentsData?.reduce((sum, p) => sum + p.amount, 0) || 0;
 
+      // Fetch pending client requests
+      const { data: clientRequestsData } = await supabase
+        .from('client_trainer_relationships')
+        .select('id')
+        .eq('trainer_id', userProfile.id)
+        .eq('status', 'pending');
+
       // Get recent bookings for display
       const recentBookings = bookingsData?.slice(0, 5) || [];
 
@@ -69,6 +78,7 @@ export default function TrainerDashboard() {
         totalClients: uniqueClients.size,
         pendingPayments: paymentsData?.length || 0,
         monthlyRevenue: 2840, // This would be calculated from actual payments
+        pendingClientRequests: clientRequestsData?.length || 0,
       });
 
       setRecentBookings(recentBookings);
@@ -158,6 +168,13 @@ export default function TrainerDashboard() {
             color={colors.error}
             onPress={() => router.push('/(trainer)/payments')}
           />
+          <StatCard
+            icon={<UserPlus color="#8B5CF6" size={24} />}
+            title="Client Requests"
+            value={stats.pendingClientRequests}
+            color="#8B5CF6"
+            onPress={() => router.push('/(trainer)/client-requests')}
+          />
         </View>
 
         {/* Recent Bookings */}
@@ -228,6 +245,14 @@ export default function TrainerDashboard() {
             >
               <Users color={colors.primary} size={24} />
               <Text style={[styles.actionText, { color: colors.text }]}>View Clients</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
+              onPress={() => router.push('/(trainer)/client-requests')}
+            >
+              <UserPlus color={colors.primary} size={24} />
+              <Text style={[styles.actionText, { color: colors.text }]}>Client Requests</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 

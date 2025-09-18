@@ -74,6 +74,9 @@ export interface Booking {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   client_notes?: string;
   trainer_notes?: string;
+  google_calendar_event_id?: string;
+  calendar_added_by_client?: boolean;
+  calendar_added_by_trainer?: boolean;
   created_at: string;
 }
 
@@ -86,6 +89,7 @@ export interface TrainerAvailability {
   is_recurring: boolean;
   specific_date?: string;
   is_blocked: boolean;
+  session_durations?: number[];
   created_at: string;
 }
 

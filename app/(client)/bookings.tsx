@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Booking, Profile } from '@/lib/supabase';
 import { googleCalendarService } from '@/lib/googleCalendar';
 import { Calendar, Clock, User, MapPin, CalendarPlus } from 'lucide-react-native';
-import { ClientBookingsSkeleton } from '@/components/SkeletonLoader';
+import { ClientBookingsSkeleton, DetailedBookingCardSkeleton } from '@/components/SkeletonLoader';
 import BookingNotificationCard from '@/components/BookingNotificationCard';
 
 export default function ClientBookings() {
@@ -163,7 +163,30 @@ export default function ClientBookings() {
   const confirmedBookings = bookings.filter(booking => booking.status === 'confirmed');
 
   if (loading) {
-    return <ClientBookingsSkeleton />;
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>My Bookings</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Loading sessions...
+            </Text>
+          </View>
+
+          <View style={styles.bookingsSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>All Bookings</Text>
+            
+            <View style={styles.bookingsList}>
+              <DetailedBookingCardSkeleton />
+              <DetailedBookingCardSkeleton />
+              <DetailedBookingCardSkeleton />
+              <DetailedBookingCardSkeleton />
+              <DetailedBookingCardSkeleton />
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    );
   }
 
   return (
@@ -172,7 +195,6 @@ export default function ClientBookings() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>My Bookings</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {bookings.length} upcoming sessions
           </Text>
         </View>
 
@@ -263,9 +285,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   bookingCard: {
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -273,7 +295,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     elevation: 3,
   },
   bookingHeader: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   bookingInfo: {
     flexDirection: 'row',
@@ -299,7 +321,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
   },
   bookingDetails: {
-    gap: 8,
+    gap: 6,
   },
   detailRow: {
     flexDirection: 'row',
@@ -310,8 +332,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
   },
   notesSection: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
@@ -324,7 +346,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
   },
   calendarSection: {
-    marginTop: 12,
+    marginTop: 8,
   },
   calendarAdded: {
     padding: 8,
@@ -344,11 +366,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   notificationsSection: {
     marginBottom: 20,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 8,
+    marginLeft:20
   },
   sectionSubtitle: {
     fontSize: 16,

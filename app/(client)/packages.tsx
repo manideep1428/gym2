@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, TrainingPackage, Profile } from '@/lib/supabase';
-import { Package, User, Calendar, DollarSign, X } from 'lucide-react-native';
+import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton } from '@/components/SkeletonLoader';
+import { Package, User, Calendar, DollarSign, X, Clock } from 'lucide-react-native';
 
 export default function ClientPackages() {
   const { colors } = useTheme();
@@ -103,8 +104,25 @@ export default function ClientPackages() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading packages...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Training Packages</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Choose the perfect package for your goals
+          </Text>
+        </View>
+
+        {/* Loading Skeleton */}
+        <View style={styles.packagesList}>
+          {Array.from({ length: 6 }).map((_, index) => (
+            <CardSkeleton
+              key={index}
+              height={140}
+              hasAvatar={false}
+              lines={4}
+            />
+          ))}
+        </View>
       </View>
     );
   }

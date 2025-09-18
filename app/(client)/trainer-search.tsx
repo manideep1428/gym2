@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile, TrainingPackage } from '@/lib/supabase';
-import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X } from 'lucide-react-native';
+import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton } from '@/components/SkeletonLoader';
+import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X, UserPlus, Heart } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 interface SearchFilters {
@@ -24,18 +25,25 @@ export default function TrainerSearchScreen() {
   const [trainerPackages, setTrainerPackages] = useState<TrainingPackage[]>([]);
   const [showTrainerModal, setShowTrainerModal] = useState(false);
   const [filteredTrainers, setFilteredTrainers] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({
     specializations: [],
     minRating: 0,
     location: '',
   });
+  const [clientRelationships, setClientRelationships] = useState<any[]>([]);
+  const [requestingTrainer, setRequestingTrainer] = useState<string | null>(null);
+
+  // Replace single loading state with targeted loading states
+  const [trainersLoading, setTrainersLoading] = useState(true);
+  const [relationshipsLoading, setRelationshipsLoading] = useState(true);
+  const [packagesLoading, setPackagesLoading] = useState(false);
 
   const styles = createStyles(colors);
 
   useEffect(() => {
     fetchTrainers();
+    fetchClientRelationships();
   }, []);
 
   useEffect(() => {
@@ -50,6 +58,7 @@ export default function TrainerSearchScreen() {
 
   const fetchTrainers = async () => {
     try {
+      setTrainersLoading(true);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -62,12 +71,13 @@ export default function TrainerSearchScreen() {
     } catch (error) {
       console.error('Error fetching trainers:', error);
     } finally {
-      setLoading(false);
+      setTrainersLoading(false);
     }
   };
 
   const fetchTrainerPackages = async (trainerId: string) => {
     try {
+      setPackagesLoading(true);
       const { data, error } = await supabase
         .from('training_packages')
         .select('*')
@@ -79,7 +89,116 @@ export default function TrainerSearchScreen() {
     } catch (error) {
       console.error('Error fetching packages:', error);
       setTrainerPackages([]);
+    } finally {
+      setPackagesLoading(false);
     }
+  };
+
+  const fetchClientRelationships = async () => {
+    if (!userProfile) return;
+
+    try {
+      setRelationshipsLoading(true);
+      const { data, error } = await supabase
+        .from('client_trainer_relationships')
+        .select('*')
+        .eq('client_id', userProfile.id);
+
+      if (error) throw error;
+      setClientRelationships(data || []);
+    } catch (error) {
+      console.error('Error fetching client relationships:', error);
+    } finally {
+      setRelationshipsLoading(false);
+    }
+  };
+
+  const requestTrainerRelationship = async (trainerId: string, message: string = '') => {
+    if (!userProfile) return;
+    
+    setRequestingTrainer(trainerId);
+    
+    try {
+      const { error } = await supabase
+        .from('client_trainer_relationships')
+        .insert({
+          client_id: userProfile.id,
+          trainer_id: trainerId,
+          client_message: message,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+      
+      // Refresh relationships
+      await fetchClientRelationships();
+      
+      // Show success notification
+      alert('Request sent successfully! The trainer will review your request.');
+    } catch (error) {
+      console.error('Error requesting trainer relationship:', error);
+      alert('Failed to send request. Please try again.');
+    } finally {
+      setRequestingTrainer(null);
+    }
+  };
+
+  const getRelationshipStatus = (trainerId: string) => {
+    return clientRelationships.find(rel => rel.trainer_id === trainerId)?.status || null;
+  };
+
+  const renderRelationshipButton = (trainer: Profile) => {
+    const relationshipStatus = getRelationshipStatus(trainer.id);
+    const isRequesting = requestingTrainer === trainer.id;
+    
+    if (relationshipStatus === 'approved') {
+      return (
+        <TouchableOpacity
+          style={[styles.relationshipButton, { backgroundColor: colors.success || '#10B981' }]}
+          disabled
+        >
+          <Heart color="#FFFFFF" size={14} fill="#FFFFFF" />
+          <Text style={[styles.relationshipButtonText, { color: '#FFFFFF' }]}>My Trainer</Text>
+        </TouchableOpacity>
+      );
+    }
+    
+    if (relationshipStatus === 'pending') {
+      return (
+        <TouchableOpacity
+          style={[styles.relationshipButton, { backgroundColor: colors.warning || '#F59E0B' }]}
+          disabled
+        >
+          <UserPlus color="#FFFFFF" size={14} />
+          <Text style={[styles.relationshipButtonText, { color: '#FFFFFF' }]}>Pending</Text>
+        </TouchableOpacity>
+      );
+    }
+    
+    if (relationshipStatus === 'rejected') {
+      return (
+        <TouchableOpacity
+          style={[styles.relationshipButton, { backgroundColor: colors.error || '#EF4444' }]}
+          disabled
+        >
+          <X color="#FFFFFF" size={14} />
+          <Text style={[styles.relationshipButtonText, { color: '#FFFFFF' }]}>Declined</Text>
+        </TouchableOpacity>
+      );
+    }
+    
+    return (
+      <TouchableOpacity
+        style={[styles.relationshipButton, { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 1 }]}
+        onPress={() => requestTrainerRelationship(trainer.id)}
+        disabled={isRequesting}
+      >
+        <UserPlus color={colors.primary} size={14} />
+        <Text style={[styles.relationshipButtonText, { color: colors.primary }]}>
+          {isRequesting ? 'Requesting...' : 'Request'}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
   const applyFiltersAndSearch = () => {
@@ -161,13 +280,17 @@ export default function TrainerSearchScreen() {
         </Text>
       </View>
 
-      <TouchableOpacity
-        style={[styles.bookButton, { backgroundColor: colors.primary }]}
-        onPress={() => router.push(`/(client)/book-session?trainerId=${trainer.id}`)}
-      >
-        <Calendar color="#FFFFFF" size={16} />
-        <Text style={styles.bookButtonText}>Book Session</Text>
-      </TouchableOpacity>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.bookButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push(`/(client)/book-session?trainerId=${trainer.id}`)}
+        >
+          <Calendar color="#FFFFFF" size={16} />
+          <Text style={styles.bookButtonText}>Book Session</Text>
+        </TouchableOpacity>
+        
+        {renderRelationshipButton(trainer)}
+      </View>
     </TouchableOpacity>
   );
 
@@ -188,10 +311,46 @@ export default function TrainerSearchScreen() {
     new Set(trainers.flatMap(trainer => trainer.specializations || []))
   ).sort();
 
-  if (loading) {
+  if (trainersLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading trainers...</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft color={colors.text} size={24} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.text }]}>Find Trainers</Text>
+          <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
+            <Filter color={colors.text} size={24} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Search color={colors.textSecondary} size={20} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Search trainers, specializations..."
+              placeholderTextColor={colors.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              editable={false}
+            />
+          </View>
+        </View>
+
+        {/* Loading Skeleton */}
+        <View style={styles.trainersList}>
+          {Array.from({ length: 6 }).map((_, index) => (
+            <CardSkeleton
+              key={index}
+              height={120}
+              hasAvatar={true}
+              lines={3}
+            />
+          ))}
+        </View>
       </SafeAreaView>
     );
   }
@@ -364,7 +523,12 @@ export default function TrainerSearchScreen() {
 
               <View style={styles.profileSection}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Available Packages</Text>
-                {trainerPackages.length === 0 ? (
+                {packagesLoading ? (
+                  <View style={{ gap: 12 }}>
+                    <CardSkeleton height={80} lines={2} />
+                    <CardSkeleton height={80} lines={2} />
+                  </View>
+                ) : trainerPackages.length === 0 ? (
                   <View style={[styles.noPackagesContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <Text style={[styles.noPackagesText, { color: colors.textSecondary }]}>
                       No packages offering
@@ -380,16 +544,20 @@ export default function TrainerSearchScreen() {
                 )}
               </View>
 
-              <TouchableOpacity
-                style={[styles.bookButton, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  setShowTrainerModal(false);
-                  router.push(`/(client)/book-session?trainerId=${selectedTrainer.id}`);
-                }}
-              >
-                <Calendar color="#FFFFFF" size={20} />
-                <Text style={styles.bookButtonText}>Book Session</Text>
-              </TouchableOpacity>
+              <View style={styles.modalButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.bookButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    setShowTrainerModal(false);
+                    router.push(`/(client)/book-session?trainerId=${selectedTrainer.id}`);
+                  }}
+                >
+                  <Calendar color="#FFFFFF" size={20} />
+                  <Text style={styles.bookButtonText}>Book Session</Text>
+                </TouchableOpacity>
+                
+                {renderRelationshipButton(selectedTrainer)}
+              </View>
             </ScrollView>
           )}
         </SafeAreaView>
@@ -558,6 +726,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  relationshipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    flex: 1,
+  },
+  relationshipButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 40,
   },
   emptyContainer: {
     alignItems: 'center',
