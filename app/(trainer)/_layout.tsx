@@ -7,8 +7,12 @@ import {
   CreditCard,
   Package,
   Settings,
+  Bell,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { NotificationBadge } from '@/components/NotificationBadge';
+import { View } from 'react-native';
 import {
   useDeviceInfo,
   getAdaptiveTabBarStyle,
@@ -18,10 +22,16 @@ import {
 
 export default function TrainerTabLayout() {
   const { colors } = useTheme();
+  const { unreadCount, notifications } = useNotifications();
   const deviceInfo = useDeviceInfo();
   const adaptiveStyle = getAdaptiveTabBarStyle(deviceInfo);
   const iconSize = getAdaptiveIconSize(adaptiveStyle.height);
   const fontSize = getAdaptiveFontSize(adaptiveStyle.height);
+
+  // Count connection request notifications for trainers
+  const connectionRequestCount = notifications.filter(n => 
+    !n.is_read && n.type === 'connection_request'
+  ).length;
 
   return (
     <Tabs
@@ -74,7 +84,28 @@ export default function TrainerTabLayout() {
         name="clients"
         options={{
           title: 'Clients',
-          tabBarIcon: ({ color }) => <Users color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Users color={color} size={iconSize} />
+              {connectionRequestCount > 0 && (
+                <NotificationBadge count={connectionRequestCount} size="small" />
+              )}
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Bell color={color} size={iconSize} />
+              {unreadCount > 0 && (
+                <NotificationBadge count={unreadCount} size="small" />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen

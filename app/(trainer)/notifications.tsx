@@ -4,9 +4,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase, Notification } from '@/lib/supabase';
-import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart } from 'lucide-react-native';
+import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart, Users } from 'lucide-react-native';
+import { TrainerNotificationsSkeleton } from '@/components/SkeletonLoader';
 
-export default function ClientNotifications() {
+export default function TrainerNotifications() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
   const { notifications, refreshNotifications, markAsRead, markAllAsRead, clearAllNotifications, handleNotificationPress } = useNotifications();
@@ -26,11 +27,13 @@ export default function ClientNotifications() {
       case 'booking_cancelled':
         return <Calendar color={colors.primary} size={20} />;
       case 'payment_request':
-      case 'payment_approved':
+      case 'payment_confirmation':
         return <DollarSign color={colors.success} size={20} />;
       case 'connection_request':
       case 'connection_response':
         return <Heart color={colors.primary} size={20} />;
+      case 'client_request':
+        return <Users color={colors.warning} size={20} />;
       case 'message':
         return <MessageSquare color={colors.warning} size={20} />;
       default:
@@ -68,7 +71,7 @@ export default function ClientNotifications() {
     >
       <View style={styles.notificationContent}>
         <View style={styles.notificationHeader}>
-          <View style={styles.iconContainer}>
+          <View style={[styles.iconContainer, { backgroundColor: colors.surface }]}>
             {getNotificationIcon(notification.type)}
           </View>
           
@@ -101,11 +104,7 @@ export default function ClientNotifications() {
   };
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading notifications...</Text>
-      </View>
-    );
+    return <TrainerNotificationsSkeleton />;
   }
 
   return (
@@ -138,7 +137,7 @@ export default function ClientNotifications() {
           <Bell color={colors.textSecondary} size={48} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No notifications</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            You'll see booking updates and messages here
+            You'll see client requests, bookings, and payment updates here
           </Text>
         </View>
       ) : (
@@ -227,6 +226,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   notificationsList: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   notificationCard: {
     borderWidth: 1,
@@ -251,7 +251,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },

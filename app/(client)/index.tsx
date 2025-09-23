@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton } from '@/components/SkeletonLoader';
+import { PendingRequestsCard } from '@/components/PendingRequestsCard';
 import { Search, Calendar, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase, Booking, Profile, PaymentRequest, TrainingPackage } from '@/lib/supabase';
@@ -17,6 +18,7 @@ export default function ClientHome() {
   const [userPackages, setUserPackages] = useState<any[]>([]);
   const [pendingPayments, setPendingPayments] = useState<(PaymentRequest & { trainer: Profile })[]>([]);
   const [suggestedTrainers, setSuggestedTrainers] = useState<Profile[]>([]);
+  const [hasConnectedTrainer, setHasConnectedTrainer] = useState(false);
 
   // Individual loading states for each section
   const [upcomingSessionsLoading, setUpcomingSessionsLoading] = useState(false);
@@ -101,15 +103,39 @@ export default function ClientHome() {
     }
   };
 
+  const checkConnectedTrainers = async () => {
+    if (!userProfile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('client_trainer_relationships')
+        .select('id')
+        .eq('client_id', userProfile.id)
+        .eq('status', 'approved')
+        .limit(1);
+
+      if (error) throw error;
+      setHasConnectedTrainer((data || []).length > 0);
+    } catch (error) {
+      console.error('Error checking connected trainers:', error);
+    }
+  };
+
   const fetchSuggestedTrainers = async () => {
+    // Don't fetch suggested trainers if client already has connected trainers
+    if (hasConnectedTrainer) {
+      setSuggestedTrainers([]);
+      return;
+    }
+
     setSuggestedTrainersLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('role', 'trainer')
-        .order('rating', { ascending: false, nullsFirst: false })
-        .limit(5);
+        .order('rating', { ascending: false })
+        .limit(3);
 
       if (error) throw error;
       setSuggestedTrainers(data || []);
@@ -121,20 +147,19 @@ export default function ClientHome() {
   };
 
   useEffect(() => {
-    fetchAllData();
+    if (userProfile) {
+      fetchUpcomingSessions();
+      fetchUserPackages();
+      fetchPendingPayments();
+      checkConnectedTrainers();
+    }
   }, [userProfile]);
 
-  const fetchAllData = async () => {
-    if (!userProfile) return;
-
-    // Fetch all data in parallel without blocking the UI
-    await Promise.all([
-      fetchUpcomingSessions(),
-      fetchUserPackages(),
-      fetchPendingPayments(),
-      fetchSuggestedTrainers(),
-    ]);
-  };
+  useEffect(() => {
+    if (userProfile) {
+      fetchSuggestedTrainers();
+    }
+  }, [userProfile, hasConnectedTrainer]);
 
   const styles = createStyles(colors);
 
@@ -159,7 +184,11 @@ export default function ClientHome() {
       </View>
 
       {/* Content */}
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Book Session Card - Always show */}
         <Pressable 
           style={({ pressed }) => [
@@ -181,6 +210,9 @@ export default function ClientHome() {
           </View>
         </Pressable>
 
+        {/* Pending Requests */}
+        <PendingRequestsCard />
+
         {/* Conditional Content */}
         <UpcomingSessionsSection
           sessions={upcomingSessions}
@@ -200,13 +232,15 @@ export default function ClientHome() {
           router={router}
           isLoading={pendingPaymentsLoading}
         />
-        <SuggestedTrainersSection
-          trainers={suggestedTrainers}
-          colors={colors}
-          router={router}
-          isLoading={suggestedTrainersLoading}
-        />
-      </View>
+        {!hasConnectedTrainer && (
+          <SuggestedTrainersSection
+            trainers={suggestedTrainers}
+            colors={colors}
+            router={router}
+            isLoading={suggestedTrainersLoading}
+          />
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -410,7 +444,7 @@ const SuggestedTrainersSection = ({ trainers, colors, router, isLoading }: any) 
         <TouchableOpacity
           key={trainer.id}
           style={[createStyles(colors).trainerCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => router.push('/(client)/trainer-search')}
+          onPress={() => router.push(`/(client)/book-session?trainerId=${trainer.id}`)}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={[createStyles(colors).trainerAvatar, { backgroundColor: colors.primary }]}>
@@ -436,7 +470,7 @@ const SuggestedTrainersSection = ({ trainers, colors, router, isLoading }: any) 
       ))}
       <TouchableOpacity
         style={[createStyles(colors).viewAllButton, { backgroundColor: colors.surface }]}
-        onPress={() => router.push('/(client)/trainer-search')}
+        onPress={() => router.push(`/(client)/trainer-search`)}
       >
         <Text style={[createStyles(colors).viewAllText, { color: colors.primary }]}>Find More Trainers</Text>
       </TouchableOpacity>
@@ -470,7 +504,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   bookSessionCard: {
     borderRadius: 12,

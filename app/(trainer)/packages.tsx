@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, TrainingPackage } from '@/lib/supabase';
 import { Package, Plus, CreditCard as Edit, Trash2, X, DollarSign, Calendar, Clock } from 'lucide-react-native';
+import { TrainerPackagesSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerPackages() {
   const { colors } = useTheme();
@@ -188,11 +189,7 @@ export default function TrainerPackages() {
   );
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading packages...</Text>
-      </View>
-    );
+    return <TrainerPackagesSkeleton />;
   }
 
   return (
@@ -247,7 +244,12 @@ export default function TrainerPackages() {
             <View style={{ width: 24 }} />
           </View>
 
-          <View style={styles.modalContent}>
+          <ScrollView 
+            style={styles.modalContent}
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.formSection}>
               <Text style={[styles.formLabel, { color: colors.text }]}>Package Name</Text>
               <TextInput
@@ -341,7 +343,7 @@ export default function TrainerPackages() {
               <Package color="#FFFFFF" size={20} />
               <Text style={styles.submitButtonText}>Create Package</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -480,6 +482,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   modalTitle: {
     fontSize: 18,
@@ -487,10 +491,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   modalContent: {
     flex: 1,
+  },
+  modalScrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 20,
   },
   formSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   formRow: {
     flexDirection: 'row',
@@ -504,14 +511,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
   },
   textArea: {
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
     textAlignVertical: 'top',
   },
@@ -522,7 +529,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   categoryOptionText: {
     fontSize: 14,
@@ -535,7 +542,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: 24,
     marginBottom: 40,
   },
   submitButtonText: {

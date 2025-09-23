@@ -114,5 +114,22 @@ export interface Notification {
   message: string;
   type: string;
   is_read: boolean;
+  data?: any;
   created_at: string;
+}
+
+export interface ClientTrainerRelationship {
+  id: string;
+  client_id: string;
+  trainer_id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'terminated';
+  requested_at: string;
+  approved_at?: string;
+  rejected_at?: string;
+  terminated_at?: string;
+  client_message?: string;
+  trainer_response?: string;
+  requested_by: 'client'; // Always client - only clients can initiate requests
+  created_at: string;
+  updated_at: string;
 }

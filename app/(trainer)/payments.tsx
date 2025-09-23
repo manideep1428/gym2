@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, PaymentRequest, Profile } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
-import { CreditCard, Plus, DollarSign, User, Calendar, X, Search, Heart } from 'lucide-react-native';
+import { CreditCard, Plus, DollarSign, User, Calendar, X, Search, Heart, Send, AlertCircle } from 'lucide-react-native';
+import { TrainerPaymentsSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerPayments() {
   const { colors } = useTheme();
@@ -13,6 +14,7 @@ export default function TrainerPayments() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [clients, setClients] = useState<Profile[]>([]);
   const [allClients, setAllClients] = useState<Profile[]>([]);
+  const [connectedClients, setConnectedClients] = useState<string[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [newPayment, setNewPayment] = useState({
@@ -65,59 +67,38 @@ export default function TrainerPayments() {
       if (allClientsError) throw allClientsError;
       setAllClients(allClientsData || []);
 
-      // Get dedicated clients (approved relationships)
-      const { data: dedicatedClientsData, error: dedicatedError } = await supabase
+      // Get connected clients (approved relationships)
+      const { data: connectedClientsData, error: connectedError } = await supabase
         .from('client_trainer_relationships')
-        .select(`
-          client_id,
-          client:profiles!client_trainer_relationships_client_id_fkey(*)
-        `)
+        .select('client_id')
         .eq('trainer_id', userProfile.id)
         .eq('status', 'approved');
 
-      if (dedicatedError) throw dedicatedError;
+      if (connectedError) throw connectedError;
 
-      // Get clients who have had bookings with this trainer
-      const { data: bookingsData, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('client_id')
-        .eq('trainer_id', userProfile.id);
+      const connectedClientIds = connectedClientsData?.map(rel => rel.client_id) || [];
+      setConnectedClients(connectedClientIds);
 
-      if (bookingsError) throw bookingsError;
-
-      const uniqueClientIds = [...new Set(bookingsData?.map(b => b.client_id) || [])];
-      const dedicatedClientIds = dedicatedClientsData?.map(rel => rel.client_id) || [];
-
-      // Combine dedicated clients and booking clients, prioritizing dedicated clients
-      const allClientIds = [...new Set([...dedicatedClientIds, ...uniqueClientIds])];
-
-      if (allClientIds.length > 0) {
+      // Only show connected clients for payment requests
+      if (connectedClientIds.length > 0) {
         const { data: clientsData, error: clientsError } = await supabase
           .from('profiles')
           .select('*')
-          .in('id', allClientIds)
+          .in('id', connectedClientIds)
           .eq('role', 'client')
           .order('name');
 
         if (clientsError) throw clientsError;
         
-        // Sort clients to show dedicated clients first
-        const sortedClients = (clientsData || []).sort((a, b) => {
-          const aIsDedicated = dedicatedClientIds.includes(a.id);
-          const bIsDedicated = dedicatedClientIds.includes(b.id);
-          
-          if (aIsDedicated && !bIsDedicated) return -1;
-          if (!aIsDedicated && bIsDedicated) return 1;
-          return a.name.localeCompare(b.name);
-        });
-        
-        // Add isDedicated flag to clients
-        const clientsWithFlags = sortedClients.map(client => ({
+        // Add isConnected flag to clients
+        const clientsWithFlags = (clientsData || []).map(client => ({
           ...client,
-          isDedicated: dedicatedClientIds.includes(client.id)
+          isConnected: true
         }));
         
         setClients(clientsWithFlags);
+      } else {
+        setClients([]);
       }
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -126,6 +107,12 @@ export default function TrainerPayments() {
 
   const createPaymentRequest = async () => {
     if (!userProfile || !selectedClient) return;
+
+    // Check if client is connected
+    if (!connectedClients.includes(selectedClient)) {
+      Alert.alert('Error', 'You can only send payment requests to connected clients. Please send a connection request first.');
+      return;
+    }
 
     if (!newPayment.amount || !newPayment.description) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -169,6 +156,7 @@ export default function TrainerPayments() {
       console.error('Create payment error:', error);
     }
   };
+
 
   const sendPaymentNotification = async (paymentData: any) => {
     try {
@@ -266,11 +254,7 @@ export default function TrainerPayments() {
   );
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading payments...</Text>
-      </View>
-    );
+    return <TrainerPaymentsSkeleton />;
   }
 
   return (
@@ -325,7 +309,12 @@ export default function TrainerPayments() {
             <View style={{ width: 24 }} />
           </View>
 
-          <View style={styles.modalContent}>
+          <ScrollView 
+            style={styles.modalContent}
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.formSection}>
               <Text style={[styles.formLabel, { color: colors.text }]}>Client</Text>
               
@@ -342,51 +331,126 @@ export default function TrainerPayments() {
                 </View>
               </View>
 
-              <View style={styles.clientSelector}>
-                {(clientSearchQuery ? 
-                  allClients.filter(client => 
-                    client.name.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
-                    client.email.toLowerCase().includes(clientSearchQuery.toLowerCase())
-                  ) : 
-                  clients
-                ).map((client) => (
-                  <TouchableOpacity
-                    key={client.id}
-                    style={[
-                      styles.clientOption,
-                      { borderColor: colors.border, backgroundColor: colors.surface },
-                      selectedClient === client.id && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
-                    ]}
-                    onPress={() => {
-                      setSelectedClient(client.id);
-                      setClientSearchQuery('');
-                    }}
+              {clientSearchQuery ? (
+                <View style={styles.clientSelectorContainer}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Search Results</Text>
+                  <ScrollView 
+                    style={styles.clientSelector}
+                    showsVerticalScrollIndicator={false}
+                    nestedScrollEnabled={true}
                   >
-                    <View style={styles.clientOptionContent}>
-                      <View style={styles.clientOptionHeader}>
-                        <Text style={[
-                          styles.clientOptionText,
-                          { color: selectedClient === client.id ? colors.primary : colors.text }
-                        ]}>
-                          {client.name}
-                        </Text>
-                        {(client as any).isDedicated && (
-                          <View style={styles.dedicatedBadge}>
-                            <Heart color="#E91E63" size={12} fill="#E91E63" />
-                            <Text style={[styles.dedicatedText, { color: '#E91E63' }]}>Dedicated</Text>
+                    {allClients
+                      .filter(client => 
+                        client.name.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+                        client.email.toLowerCase().includes(clientSearchQuery.toLowerCase())
+                      )
+                      .filter(client => connectedClients.includes(client.id))
+                      .map((client) => (
+                        <TouchableOpacity
+                          key={client.id}
+                          style={[
+                            styles.clientOption,
+                            { borderColor: colors.border, backgroundColor: colors.surface },
+                            selectedClient === client.id && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
+                          ]}
+                          onPress={() => {
+                            setSelectedClient(client.id);
+                            setClientSearchQuery('');
+                          }}
+                        >
+                          <View style={styles.clientOptionContent}>
+                            <View style={styles.clientOptionHeader}>
+                              <Text style={[
+                                styles.clientOptionText,
+                                { color: selectedClient === client.id ? colors.primary : colors.text }
+                              ]}>
+                                {client.name}
+                              </Text>
+                              <View style={styles.connectedBadge}>
+                                <Heart color="#E91E63" size={12} fill="#E91E63" />
+                                <Text style={[styles.connectedText, { color: '#E91E63' }]}>Connected</Text>
+                              </View>
+                            </View>
+                            <Text style={[
+                              styles.clientOptionEmail,
+                              { color: colors.textSecondary }
+                            ]}>
+                              {client.email}
+                            </Text>
                           </View>
-                        )}
+                        </TouchableOpacity>
+                      ))}
+                    {allClients
+                      .filter(client => 
+                        client.name.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+                        client.email.toLowerCase().includes(clientSearchQuery.toLowerCase())
+                      )
+                      .filter(client => connectedClients.includes(client.id)).length === 0 && (
+                      <View style={styles.noResultsContainer}>
+                        <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
+                          No connected clients found matching your search
+                        </Text>
                       </View>
-                      <Text style={[
-                        styles.clientOptionEmail,
-                        { color: colors.textSecondary }
-                      ]}>
-                        {client.email}
+                    )}
+                  </ScrollView>
+                </View>
+              ) : (
+                <View style={styles.clientSelectorContainer}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Connected Clients</Text>
+                  {clients.length === 0 ? (
+                    <View style={[styles.errorContainer, { backgroundColor: colors.error + '10', borderColor: colors.error }]}>
+                      <AlertCircle color={colors.error} size={24} />
+                      <Text style={[styles.errorTitle, { color: colors.error }]}>No Connected Clients</Text>
+                      <Text style={[styles.errorSubtitle, { color: colors.error }]}>
+                        You can only send payment requests to clients who have connected with you. 
+                        Ask your clients to send you connection requests from their app.
                       </Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                  ) : (
+                    <ScrollView 
+                      style={styles.clientSelector}
+                      showsVerticalScrollIndicator={false}
+                      nestedScrollEnabled={true}
+                    >
+                      {clients.map((client) => (
+                        <TouchableOpacity
+                          key={client.id}
+                          style={[
+                            styles.clientOption,
+                            { borderColor: colors.border, backgroundColor: colors.surface },
+                            selectedClient === client.id && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
+                          ]}
+                          onPress={() => {
+                            setSelectedClient(client.id);
+                            setClientSearchQuery('');
+                          }}
+                        >
+                          <View style={styles.clientOptionContent}>
+                            <View style={styles.clientOptionHeader}>
+                              <Text style={[
+                                styles.clientOptionText,
+                                { color: selectedClient === client.id ? colors.primary : colors.text }
+                              ]}>
+                                {client.name}
+                              </Text>
+                              <View style={styles.connectedBadge}>
+                                <Heart color="#E91E63" size={12} fill="#E91E63" />
+                                <Text style={[styles.connectedText, { color: '#E91E63' }]}>Connected</Text>
+                              </View>
+                            </View>
+                            <Text style={[
+                              styles.clientOptionEmail,
+                              { color: colors.textSecondary }
+                            ]}>
+                              {client.email}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
             </View>
 
             <View style={styles.formSection}>
@@ -415,14 +479,17 @@ export default function TrainerPayments() {
             </View>
 
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.submitButton, 
+                { backgroundColor: (!selectedClient || !newPayment.amount || !newPayment.description) ? colors.textSecondary : colors.primary }
+              ]}
               onPress={createPaymentRequest}
               disabled={!selectedClient || !newPayment.amount || !newPayment.description}
             >
-              <DollarSign color="#FFFFFF" size={20} />
-              <Text style={styles.submitButtonText}>Create Request</Text>
+              <Send color="#FFFFFF" size={20} />
+              <Text style={styles.submitButtonText}>Send Payment Request</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -563,7 +630,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   modalContent: {
     flex: 1,
+  },
+  modalScrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 20,
   },
   formSection: {
     marginBottom: 24,
@@ -589,9 +659,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     fontSize: 16,
   },
+  clientSelectorContainer: {
+    marginBottom: 16,
+  },
   clientSelector: {
     gap: 8,
     maxHeight: 200,
+    paddingBottom: 8,
   },
   clientOption: {
     borderWidth: 1,
@@ -655,5 +729,72 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  clientOptionWrapper: {
+    marginBottom: 8,
+  },
+  connectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#E91E6320',
+  },
+  connectedText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#E91E63',
+  },
+  noResultsContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  errorContainer: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 8,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emptyConnectedState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  emptyConnectedTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyConnectedSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

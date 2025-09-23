@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { supabase, TrainerAvailability } from '@/lib/supabase';
 import { ChevronLeft, Clock, Plus, X, Trash2, ChevronRight, Sunrise, Sun, Sunset } from 'lucide-react-native';
-import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { SkeletonLoader, TrainerScheduleSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerAvailabilityScreen() {
   const { colors } = useTheme();
@@ -840,32 +840,7 @@ export default function TrainerAvailabilityScreen() {
   });
 
   if (loading) {
-    return (
-      <View style={styles.container}> 
-        <View style={styles.header}> 
-          <SkeletonLoader width={160} height={20} borderRadius={6} />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <SkeletonLoader width={100} height={32} borderRadius={16} />
-            <SkeletonLoader width={40} height={40} borderRadius={20} />
-          </View>
-        </View>
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={{ marginBottom: 16 }}>
-            <SkeletonLoader width={220} height={18} borderRadius={6} style={{ marginBottom: 12 }} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-              {[...Array(7)].map((_, i) => (
-                <SkeletonLoader key={i} width={40} height={40} borderRadius={20} />
-              ))}
-            </View>
-          </View>
-          {[...Array(3)].map((_, idx) => (
-            <View key={idx} style={{ marginBottom: 16 }}>
-              <SkeletonLoader width={'100%'} height={60} borderRadius={12} />
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-    );
+    return <TrainerScheduleSkeleton />;
   }
 
   return (

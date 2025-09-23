@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, SafeAreaView, Modal, ScrollView, TextInput } from 'react-native';
+import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile } from '@/lib/supabase';
-import { Users, User, Check, X, Clock, MessageSquare, ArrowLeft } from 'lucide-react-native';
+import NotificationService from '@/lib/notificationService';
+import { UserPlus, Users, CheckCircle, X, MessageSquare, ArrowLeft, User, Clock, Check } from 'lucide-react-native';
+import { TrainerClientRequestsSkeleton } from '@/components/SkeletonLoader';
 import { useRouter } from 'expo-router';
 
 interface ClientRequest {
@@ -79,6 +81,18 @@ export default function ClientRequestsScreen() {
         .eq('id', requestId);
 
       if (error) throw error;
+
+      // Send notification to client
+      if (selectedRequest && userProfile) {
+        const notificationService = NotificationService.getInstance();
+        await notificationService.notifyConnectionResponse(
+          selectedRequest.client_id,
+          userProfile.name,
+          status,
+          requestId,
+          message
+        );
+      }
 
       // Refresh requests
       await fetchClientRequests();
@@ -189,14 +203,14 @@ export default function ClientRequestsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading requests...</Text>
-      </SafeAreaView>
+      <RNSafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+        <TrainerClientRequestsSkeleton />
+      </RNSafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <RNSafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -252,7 +266,7 @@ export default function ClientRequestsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowResponseModal(false)}
       >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+        <RNSafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowResponseModal(false)}>
               <X color={colors.text} size={24} />
@@ -325,9 +339,9 @@ export default function ClientRequestsScreen() {
               </View>
             </ScrollView>
           )}
-        </SafeAreaView>
+        </RNSafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </RNSafeAreaView>
   );
 }
 

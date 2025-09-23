@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "GYM",
-    "slug": "gymupdated",
+    "slug": "gym",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -11,7 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["background-fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "background-fetch",
+          "remote-notification"
+        ]
       }
     },
     "web": {
@@ -28,7 +31,6 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#ffffff",
-          "sounds": ["./assets/sounds/notification.wav"],
           "mode": "production"
         }
       ]
@@ -39,7 +41,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e84f748a-c373-4c8c-8439-e59169869bf8"
+        "projectId": "5a24605a-37f8-4d2b-8893-c5b22190a2ab"
       }
     },
     "owner": "manideep1428",

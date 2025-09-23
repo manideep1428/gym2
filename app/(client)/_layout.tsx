@@ -9,6 +9,9 @@ import {
   CreditCard,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { NotificationBadge } from '@/components/NotificationBadge';
+import { View } from 'react-native';
 import {
   useDeviceInfo,
   getAdaptiveTabBarStyle,
@@ -18,6 +21,7 @@ import {
 
 export default function ClientTabLayout() {
   const { colors } = useTheme();
+  const { unreadCount } = useNotifications();
   const deviceInfo = useDeviceInfo();
   const adaptiveStyle = getAdaptiveTabBarStyle(deviceInfo);
   const iconSize = getAdaptiveIconSize(adaptiveStyle.height);
@@ -71,7 +75,15 @@ export default function ClientTabLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          href: null,
+          title: 'Notifications',
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Bell color={color} size={iconSize} />
+              {unreadCount > 0 && (
+                <NotificationBadge count={unreadCount} size="small" />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen

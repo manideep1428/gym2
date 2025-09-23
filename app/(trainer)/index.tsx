@@ -1,10 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase, Profile, Booking, PaymentRequest, TrainingPackage } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
-import { Calendar, Users, DollarSign, TrendingUp, Clock, Package2, Edit, UserPlus } from 'lucide-react-native';
+import {
+  Users,
+  Calendar,
+  CreditCard,
+  TrendingUp,
+  Package,
+  Bell,
+  UserPlus,
+  DollarSign,
+  Clock,
+  Star,
+  Target,
+  Activity,
+  Package2,
+  Edit
+} from 'lucide-react-native';
 import { TrainerDashboardSkeleton } from '@/components/SkeletonLoader';
 
 interface DashboardStats {

@@ -625,12 +625,180 @@ export const TrainerClientsSkeleton = () => {
           </View>
           <View style={[styles.bookingCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
             <SkeletonLoader width={48} height={48} borderRadius={24} style={{ marginRight: 12 }} />
-            <View style={{ flex: 1, gap: 6 }}>
+            {/* <View style={{ flex: 1, gap: 6 }}>
               <SkeletonLoader width={120} height={16} />
               <SkeletonLoader width={200} height={12} />
-            </View>
+            </View> */}
           </View>
         </View>
+      </View>
+    </View>
+  );
+};
+
+// Trainer Packages Skeleton
+export const TrainerPackagesSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <SkeletonLoader width={160} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
+        <SkeletonLoader width={200} height={16} borderRadius={4} />
+      </View>
+
+      <View style={styles.content}>
+        {Array.from({ length: 3 }).map((_, index) => (
+          <View key={index} style={[styles.packageCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.packageHeader}>
+              <SkeletonLoader width={120} height={18} borderRadius={4} />
+              <SkeletonLoader width={80} height={24} borderRadius={12} />
+            </View>
+            <SkeletonLoader width="100%" height={14} borderRadius={4} style={{ marginBottom: 8 }} />
+            <SkeletonLoader width="80%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+            <View style={styles.packageFooter}>
+              <SkeletonLoader width={60} height={20} borderRadius={4} />
+              <SkeletonLoader width={100} height={14} borderRadius={4} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// Trainer Payments Skeleton
+export const TrainerPaymentsSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <SkeletonLoader width={140} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
+        <SkeletonLoader width={180} height={16} borderRadius={4} />
+      </View>
+
+      <View style={styles.content}>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <View key={index} style={[styles.paymentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.paymentHeader}>
+              <View style={styles.clientInfo}>
+                <SkeletonLoader width={32} height={32} borderRadius={16} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <SkeletonLoader width={100} height={16} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <SkeletonLoader width={80} height={12} borderRadius={4} />
+                </View>
+              </View>
+              <SkeletonLoader width={60} height={24} borderRadius={12} />
+            </View>
+            <View style={styles.paymentDetails}>
+              <SkeletonLoader width={120} height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+              <SkeletonLoader width={90} height={12} borderRadius={4} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// Trainer Schedule/Availability Skeleton
+export const TrainerScheduleSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <SkeletonLoader width={180} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
+        <SkeletonLoader width={220} height={16} borderRadius={4} />
+      </View>
+
+      <View style={styles.content}>
+        {/* Weekly Calendar Skeleton */}
+        <View style={styles.calendarContainer}>
+          {/* Days Header */}
+          <View style={styles.daysHeader}>
+            {Array.from({ length: 7 }).map((_, index) => (
+              <SkeletonLoader key={index} width={40} height={16} borderRadius={4} />
+            ))}
+          </View>
+          
+          {/* Time Slots Grid */}
+          <View style={styles.timeSlotsGrid}>
+            {Array.from({ length: 6 }).map((_, rowIndex) => (
+              <View key={rowIndex} style={styles.timeSlotRow}>
+                <SkeletonLoader width={60} height={14} borderRadius={4} style={{ marginRight: 12 }} />
+                {Array.from({ length: 7 }).map((_, colIndex) => (
+                  <SkeletonLoader key={colIndex} width={40} height={40} borderRadius={8} />
+                ))}
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// Trainer Notifications Skeleton
+export const TrainerNotificationsSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <SkeletonLoader width={140} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
+        <SkeletonLoader width={100} height={16} borderRadius={4} />
+      </View>
+
+      <View style={styles.content}>
+        {Array.from({ length: 5 }).map((_, index) => (
+          <View key={index} style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.notificationHeader}>
+              <SkeletonLoader width={24} height={24} borderRadius={12} style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <SkeletonLoader width={160} height={16} borderRadius={4} style={{ marginBottom: 4 }} />
+                <SkeletonLoader width={120} height={12} borderRadius={4} />
+              </View>
+              <SkeletonLoader width={8} height={8} borderRadius={4} />
+            </View>
+            <SkeletonLoader width="90%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// Enhanced Trainer Client Requests Skeleton
+export const TrainerClientRequestsSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Tab Headers */}
+      <View style={styles.tabContainer}>
+        <SkeletonLoader width={120} height={16} borderRadius={4} />
+        <SkeletonLoader width={100} height={16} borderRadius={4} />
+      </View>
+
+      <View style={styles.content}>
+        {Array.from({ length: 3 }).map((_, index) => (
+          <View key={index} style={[styles.requestCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.requestHeader}>
+              <SkeletonLoader width={40} height={40} borderRadius={20} style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <SkeletonLoader width={120} height={16} borderRadius={4} style={{ marginBottom: 4 }} />
+                <SkeletonLoader width={80} height={12} borderRadius={4} />
+              </View>
+            </View>
+            <SkeletonLoader width="100%" height={14} borderRadius={4} style={{ marginTop: 12, marginBottom: 16 }} />
+            <View style={styles.requestActions}>
+              <SkeletonLoader width={80} height={32} borderRadius={8} />
+              <SkeletonLoader width={80} height={32} borderRadius={8} />
+            </View>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -915,5 +1083,112 @@ const styles = StyleSheet.create({
   },
   bookingActions: {
     marginTop: 12,
+  },
+  // New trainer-specific styles
+  packageCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  packageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  packageFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paymentCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  paymentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  paymentDetails: {
+    gap: 4,
+  },
+  clientInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  calendarContainer: {
+    gap: 16,
+  },
+  daysHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+  },
+  timeSlotsGrid: {
+    gap: 8,
+  },
+  timeSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notificationCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 20,
+  },
+  requestCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
 });

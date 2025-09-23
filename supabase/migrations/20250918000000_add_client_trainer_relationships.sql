@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS client_trainer_relationships (
   terminated_at timestamptz,
   client_message text,
   trainer_response text,
+  requested_by text DEFAULT 'client' CHECK (requested_by = 'client'),
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   
@@ -31,9 +32,9 @@ CREATE POLICY "View own relationships" ON client_trainer_relationships
     auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')
   );
 
-CREATE POLICY "Clients can create relationship requests" ON client_trainer_relationships
+CREATE POLICY "Only clients can create relationship requests" ON client_trainer_relationships
   FOR INSERT WITH CHECK (
-    auth.uid() = client_id AND
+    auth.uid() = client_id AND 
     auth.uid() IN (SELECT id FROM profiles WHERE role = 'client')
   );
 

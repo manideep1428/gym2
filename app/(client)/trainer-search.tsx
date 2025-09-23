@@ -4,8 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile, TrainingPackage } from '@/lib/supabase';
+import NotificationService from '@/lib/notificationService';
 import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton } from '@/components/SkeletonLoader';
-import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X, UserPlus, Heart } from 'lucide-react-native';
+import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X, UserPlus, Heart, Trash2, AlertTriangle } from 'lucide-react-native';
+import { Users, User } from 'lucide-react-native';
+import { NotificationBadge } from '@/components/NotificationBadge';
 import { useRouter } from 'expo-router';
 
 interface SearchFilters {
@@ -33,6 +36,10 @@ export default function TrainerSearchScreen() {
   });
   const [clientRelationships, setClientRelationships] = useState<any[]>([]);
   const [requestingTrainer, setRequestingTrainer] = useState<string | null>(null);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [trainerToRemove, setTrainerToRemove] = useState<any>(null);
+  const [removeTimer, setRemoveTimer] = useState(5);
+  const [canRemove, setCanRemove] = useState(false);
 
   // Replace single loading state with targeted loading states
   const [trainersLoading, setTrainersLoading] = useState(true);
@@ -119,16 +126,27 @@ export default function TrainerSearchScreen() {
     setRequestingTrainer(trainerId);
     
     try {
-      const { error } = await supabase
+      const { data: relationshipData, error } = await supabase
         .from('client_trainer_relationships')
         .insert({
           client_id: userProfile.id,
           trainer_id: trainerId,
           client_message: message,
           status: 'pending'
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Send notification to trainer
+      const notificationService = NotificationService.getInstance();
+      await notificationService.notifyConnectionRequest(
+        trainerId,
+        userProfile.name,
+        relationshipData.id,
+        message
+      );
       
       // Refresh relationships
       await fetchClientRelationships();
@@ -147,19 +165,70 @@ export default function TrainerSearchScreen() {
     return clientRelationships.find(rel => rel.trainer_id === trainerId)?.status || null;
   };
 
+  const showRemoveConfirmation = (trainer: Profile) => {
+    setTrainerToRemove(trainer);
+    setShowRemoveModal(true);
+    setRemoveTimer(5);
+    setCanRemove(false);
+    
+    // Start countdown
+    const interval = setInterval(() => {
+      setRemoveTimer(prev => {
+        if (prev <= 1) {
+          setCanRemove(true);
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const removeTrainer = async () => {
+    if (!trainerToRemove || !canRemove || !userProfile) return;
+
+    try {
+      const { error } = await supabase
+        .from('client_trainer_relationships')
+        .update({ status: 'terminated', terminated_at: new Date().toISOString() })
+        .eq('client_id', userProfile.id)
+        .eq('trainer_id', trainerToRemove.id);
+
+      if (error) throw error;
+
+      // Refresh relationships
+      await fetchClientRelationships();
+      
+      setShowRemoveModal(false);
+      setTrainerToRemove(null);
+      alert('Trainer relationship terminated successfully.');
+    } catch (error) {
+      console.error('Error removing trainer:', error);
+      alert('Failed to remove trainer. Please try again.');
+    }
+  };
+
   const renderRelationshipButton = (trainer: Profile) => {
     const relationshipStatus = getRelationshipStatus(trainer.id);
     const isRequesting = requestingTrainer === trainer.id;
     
     if (relationshipStatus === 'approved') {
       return (
-        <TouchableOpacity
-          style={[styles.relationshipButton, { backgroundColor: colors.success || '#10B981' }]}
-          disabled
-        >
-          <Heart color="#FFFFFF" size={14} fill="#FFFFFF" />
-          <Text style={[styles.relationshipButtonText, { color: '#FFFFFF' }]}>My Trainer</Text>
-        </TouchableOpacity>
+        <View style={styles.approvedTrainerContainer}>
+          <TouchableOpacity
+            style={[styles.relationshipButton, { backgroundColor: colors.success || '#10B981' }]}
+            disabled
+          >
+            <Heart color="#FFFFFF" size={14} fill="#FFFFFF" />
+            <Text style={[styles.relationshipButtonText, { color: '#FFFFFF' }]}>My Trainer</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.removeTrainerButton, { backgroundColor: colors.error + '10' }]}
+            onPress={() => showRemoveConfirmation(trainer)}
+          >
+            <Trash2 color={colors.error} size={14} />
+          </TouchableOpacity>
+        </View>
       );
     }
     
@@ -562,6 +631,54 @@ export default function TrainerSearchScreen() {
           )}
         </SafeAreaView>
       </Modal>
+
+      {/* Remove Trainer Confirmation Modal */}
+      <Modal
+        visible={showRemoveModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRemoveModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.removeModalContainer, { backgroundColor: colors.card }]}>
+            <View style={styles.removeModalHeader}>
+              <AlertTriangle color={colors.error} size={24} />
+              <Text style={[styles.removeModalTitle, { color: colors.text }]}>
+                Remove Trainer
+              </Text>
+            </View>
+            
+            <Text style={[styles.removeModalMessage, { color: colors.textSecondary }]}>
+              Are you sure you want to remove {trainerToRemove?.name} as your trainer? This will terminate your relationship and cannot be undone.
+            </Text>
+            
+            <View style={styles.removeModalActions}>
+              <TouchableOpacity
+                style={[styles.cancelButton, { backgroundColor: colors.surface }]}
+                onPress={() => setShowRemoveModal(false)}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.confirmRemoveButton,
+                  { 
+                    backgroundColor: canRemove ? colors.error : colors.error + '50',
+                    opacity: canRemove ? 1 : 0.5
+                  }
+                ]}
+                onPress={removeTrainer}
+                disabled={!canRemove}
+              >
+                <Text style={styles.confirmRemoveButtonText}>
+                  {canRemove ? 'Remove' : `Wait ${removeTimer}s`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -714,12 +831,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
+  packageSessions: {
+    fontSize: 12,
+    marginTop: 4,
+  },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderRadius: 8,
   },
   bookButtonText: {
@@ -736,13 +858,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
     borderRadius: 6,
     flex: 1,
   },
   relationshipButtonText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
   },
   modalButtonContainer: {
@@ -883,7 +1005,67 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  packageSessions: {
-    fontSize: 12,
+  approvedTrainerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  removeTrainerButton: {
+    padding: 8,
+    borderRadius: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeModalContainer: {
+    margin: 20,
+    borderRadius: 16,
+    padding: 24,
+    maxWidth: 400,
+    width: '90%',
+  },
+  removeModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  removeModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  removeModalMessage: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  removeModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  confirmRemoveButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  confirmRemoveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
