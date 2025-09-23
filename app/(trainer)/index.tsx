@@ -7,18 +7,12 @@ import { useRouter } from 'expo-router';
 import {
   Users,
   Calendar,
-  CreditCard,
   TrendingUp,
-  Package,
-  Bell,
   UserPlus,
   DollarSign,
   Clock,
-  Star,
-  Target,
-  Activity,
-  Package2,
-  Edit
+  Edit,
+  Package2
 } from 'lucide-react-native';
 import { TrainerDashboardSkeleton } from '@/components/SkeletonLoader';
 
@@ -45,12 +39,24 @@ export default function TrainerDashboard() {
   });
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const styles = createStyles(colors);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchDashboardData();
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     if (!userProfile) return;
@@ -146,12 +152,21 @@ export default function TrainerDashboard() {
         <Text style={[styles.greeting, { color: colors.text }]}>
           Welcome back, {userProfile?.name}!
         </Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Here's your training overview
-        </Text>
+
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
           <StatCard

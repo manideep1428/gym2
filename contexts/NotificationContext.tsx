@@ -42,11 +42,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       refreshNotifications();
       setupRealtimeSubscription();
       
-      // Initialize notification service
+      // Initialize notification service and register for push notifications
       const notificationService = NotificationService.getInstance();
       notificationService.initializeNotificationListeners();
+      
+      // Register for push notifications
+      registerForPushNotifications();
     }
   }, [userProfile]);
+
+  const registerForPushNotifications = async () => {
+    if (!userProfile) return;
+    
+    try {
+      const notificationService = NotificationService.getInstance();
+      await notificationService.registerForPushNotifications(userProfile.id);
+      console.log('✅ Successfully registered for push notifications');
+    } catch (error) {
+      console.error('❌ Failed to register for push notifications:', error);
+    }
+  };
 
   const refreshNotifications = async () => {
     if (!userProfile) return;
@@ -126,6 +141,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       setNotifications(prev => 
         prev.map(n => ({ ...n, is_read: true }))
       );
+      setUnreadCount(0);
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
@@ -144,6 +160,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
       // Clear local state
       setNotifications([]);
+      setUnreadCount(0);
     } catch (error) {
       console.error('Error clearing all notifications:', error);
     }

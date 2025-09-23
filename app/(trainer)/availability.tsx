@@ -21,7 +21,7 @@ export default function TrainerAvailabilityScreen() {
   const [endTime, setEndTime] = useState('17:00');
   const [sessionDurations, setSessionDurations] = useState<number[]>([30, 60]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'calendar' | 'weekly' | 'grid'>('grid');
+  const [viewMode, setViewMode] = useState<'calendar' | 'weekly'>('weekly');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (message: string) => {
@@ -72,53 +72,6 @@ export default function TrainerAvailabilityScreen() {
     }
   };
 
-  const handleToggleSlot = async (dayOfWeek: number, timeSlot: string) => {
-    if (!userProfile) return;
-
-    const [hours, minutes] = timeSlot.split(':');
-    const slotTime = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00`;
-    const nextHour = new Date(`2000-01-01T${slotTime}`);
-    nextHour.setHours(nextHour.getHours() + 1);
-    const endTimeFormatted = nextHour.toTimeString().slice(0, 8);
-
-    // Check if this slot already exists
-    const existingSlot = availability.find(slot =>
-      slot.day_of_week === dayOfWeek &&
-      slot.start_time === slotTime &&
-      slot.is_recurring
-    );
-
-    try {
-      if (existingSlot) {
-        // Remove the slot
-        const { error } = await supabase
-          .from('trainer_availability')
-          .delete()
-          .eq('id', existingSlot.id);
-
-        if (error) throw error;
-        showToast('Availability removed');
-      } else {
-        // Add the slot
-        const { error } = await supabase
-          .from('trainer_availability')
-          .insert({
-            trainer_id: userProfile.id,
-            day_of_week: dayOfWeek,
-            start_time: slotTime,
-            end_time: endTimeFormatted,
-            is_recurring: true,
-          });
-
-        if (error) throw error;
-        showToast('Availability added');
-      }
-      await fetchAvailability();
-    } catch (error) {
-      console.error('Toggle slot error:', error);
-      showToast('Failed to update availability');
-    }
-  };
 
   const groupedAvailability = availability.reduce((acc, slot) => {
     if (!acc[slot.day_of_week]) {
@@ -746,75 +699,6 @@ export default function TrainerAvailabilityScreen() {
     toastText: {
       color: colors.text,
     },
-    // Grid styles
-    gridView: {
-      flex: 1,
-    },
-    gridContainer: {
-      flex: 1,
-    },
-    gridHeader: {
-      flexDirection: 'row',
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      paddingVertical: 12,
-    },
-    timeHeaderCell: {
-      width: 80,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 8,
-    },
-    dayHeaderCell: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 4,
-    },
-    headerText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    gridRow: {
-      flexDirection: 'row',
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      minHeight: 50,
-    },
-    timeCell: {
-      width: 80,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 8,
-    },
-    gridTimeText: {
-      fontSize: 10,
-      fontWeight: '500',
-      color: colors.textSecondary,
-    },
-    slotCell: {
-      flex: 1,
-      minHeight: 50,
-      borderWidth: 1,
-      borderLeftWidth: 0.5,
-      borderRightWidth: 0.5,
-      alignItems: 'center',
-      justifyContent: 'center',
-      position: 'relative',
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-    },
-    slotCellAvailable: {
-      backgroundColor: colors.primary + '40',
-      borderColor: colors.primary,
-    },
-    availableIndicator: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      position: 'absolute',
-      backgroundColor: colors.primary,
-    },
     durationOption: {
       flex: 1,
       minWidth: '18%',
@@ -871,20 +755,6 @@ export default function TrainerAvailabilityScreen() {
         <TouchableOpacity
           style={[
             styles.toggleButton,
-            viewMode === 'grid' && styles.toggleButtonActive
-          ]}
-          onPress={() => setViewMode('grid')}
-        >
-          <Text style={[
-            styles.toggleText,
-            viewMode === 'grid' && styles.toggleTextActive
-          ]}>
-            Grid
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
             viewMode === 'calendar' && styles.toggleButtonActive
           ]}
           onPress={() => setViewMode('calendar')}
@@ -913,27 +783,10 @@ export default function TrainerAvailabilityScreen() {
       </View>
 
       {/* Helper Section */}
-      <View style={styles.helperSection}>
-        <Text style={styles.helperTitle}>Set Your Available Hours</Text>
-        <Text style={styles.helperText}>
-          {viewMode === 'grid'
-            ? 'Click time slots to toggle availability. Blue slots are available, gray are unavailable.'
-            : viewMode === 'calendar'
-            ? 'Tap any date to add availability. Blue dots show days you\'re available.'
-            : 'Use the + button to add time slots for each day of the week.'
-          }
-        </Text>
-      </View>
+
 
       <ScrollView style={styles.content}>
-        {viewMode === 'grid' ? (
-          <WeeklyAvailabilityGrid
-            availability={availability}
-            onToggleSlot={handleToggleSlot}
-            colors={colors}
-            styles={styles}
-          />
-        ) : viewMode === 'calendar' ? (
+        {viewMode === 'calendar' ? (
           <View style={styles.calendarView}>
             {/* Calendar Header */}
             <View style={styles.calendarHeader}>
@@ -1219,75 +1072,3 @@ export default function TrainerAvailabilityScreen() {
     </View>
   );
 }
-
-const WeeklyAvailabilityGrid = ({ availability, onToggleSlot, colors, styles }: {
-  availability: TrainerAvailability[];
-  onToggleSlot: (dayOfWeek: number, timeSlot: string) => void;
-  colors: any;
-  styles: any;
-}) => {
-  const timeSlots = [];
-  for (let hour = 6; hour <= 22; hour++) {
-    timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
-  }
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  const isSlotAvailable = (dayOfWeek: number, timeSlot: string) => {
-    const slotTime = timeSlot + ':00';
-    return availability.some(slot =>
-      slot.day_of_week === dayOfWeek &&
-      slot.start_time <= slotTime &&
-      slot.end_time > slotTime &&
-      slot.is_recurring &&
-      !slot.is_blocked
-    );
-  };
-
-  return (
-    <View style={styles.gridContainer}>
-      {/* Time column header */}
-      <View style={styles.gridHeader}>
-        <View style={styles.timeHeaderCell}>
-          <Text style={[styles.headerText, { color: colors.textSecondary }]}>Time</Text>
-        </View>
-        {dayNames.map((day, index) => (
-          <View key={index} style={styles.dayHeaderCell}>
-            <Text style={[styles.headerText, { color: colors.text }]}>{day}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Time slots grid */}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {timeSlots.map((timeSlot, timeIndex) => (
-          <View key={timeIndex} style={styles.gridRow}>
-            <View style={styles.timeCell}>
-              <Text style={styles.gridTimeText}>
-                {new Date(`2000-01-01T${timeSlot}:00`).toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true
-                })}
-              </Text>
-            </View>
-            {dayNames.map((_, dayIndex) => (
-              <TouchableOpacity
-                key={dayIndex}
-                style={[
-                  styles.slotCell,
-                  isSlotAvailable(dayIndex, timeSlot) && styles.slotCellAvailable
-                ]}
-                onPress={() => onToggleSlot(dayIndex, timeSlot)}
-              >
-                {isSlotAvailable(dayIndex, timeSlot) && (
-                  <View style={styles.availableIndicator} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-      </ScrollView>
-    </View>
-  );
-};

@@ -4,6 +4,72 @@ import { PlatformUtils } from './platform';
 const { width, height } = Dimensions.get('window');
 const isTablet = width >= 768;
 
+// Color utilities for cross-platform consistency
+export const colorUtils = {
+  withOpacity: (color: string, opacity: number) => {
+    // Handle both hex and rgba colors
+    if (color.startsWith('#')) {
+      const hex = color.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    return color;
+  },
+  
+  getStatusColor: (status: string, colors: any) => {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+      case 'active':
+      case 'success':
+        return colors.success;
+      case 'pending':
+      case 'warning':
+        return colors.warning;
+      case 'cancelled':
+      case 'error':
+      case 'failed':
+        return colors.error;
+      case 'completed':
+      case 'inactive':
+        return colors.textSecondary;
+      default:
+        return colors.textSecondary;
+    }
+  },
+};
+
+// Animation utilities
+export const animationUtils = {
+  spring: Platform.select({
+    ios: {
+      tension: 100,
+      friction: 8,
+    },
+    android: {
+      tension: 80,
+      friction: 10,
+    },
+    default: {
+      tension: 100,
+      friction: 8,
+    },
+  }),
+  
+  timing: Platform.select({
+    ios: {
+      duration: 250,
+    },
+    android: {
+      duration: 200,
+    },
+    default: {
+      duration: 200,
+    },
+  }),
+};
+
 export const createUniversalStyles = (colors: any) => {
   const platformStyles = PlatformUtils.getPlatformStyles();
   
@@ -228,79 +294,242 @@ export const createUniversalStyles = (colors: any) => {
       marginBottom: 16,
     },
     
-    // Platform-specific spacing
-    spacing: {
-      xs: 4,
-      sm: 8,
-      md: 16,
-      lg: 24,
-      xl: 32,
+    // Skeleton loader styles
+    skeletonLoader: {
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+
+    skeletonShimmer: {
+      backgroundColor: colors.border,
+      height: '100%',
+      width: '100%',
+    },
+
+    // Skeleton variations
+    skeletonText: {
+      height: 16,
+      borderRadius: 4,
+      marginBottom: 8,
+    },
+
+    skeletonTitle: {
+      height: 20,
+      borderRadius: 6,
+      marginBottom: 12,
+    },
+
+    skeletonAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+    },
+
+    skeletonCard: {
+      backgroundColor: colors.card,
+      borderRadius: platformStyles.card.borderRadius,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: Platform.select({
+        ios: 0,
+        android: 1,
+        default: 1,
+      }),
+      borderColor: colors.border,
+      ...platformStyles.shadow,
+    },
+
+    // Modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    modalContainer: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 24,
+      margin: 20,
+      maxWidth: isTablet ? 500 : 400,
+      width: isTablet ? '80%' : '90%',
+      ...platformStyles.shadow,
+    },
+
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+      gap: 12,
+    },
+
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: Platform.select({
+        ios: '600',
+        android: '500',
+        default: '600',
+      }),
+      color: colors.text,
+    },
+
+    modalActions: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 24,
+    },
+
+    modalButton: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+
+    modalButtonText: {
+      fontSize: 16,
+      fontWeight: Platform.select({
+        ios: '600',
+        android: '500',
+        default: '500',
+      }),
+    },
+
+    // Tab styles
+    tabContainer: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 20,
+    },
+
+    tabButton: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: 'center',
+      borderRadius: 8,
+    },
+
+    tabButtonActive: {
+      backgroundColor: colors.primary,
+    },
+
+    tabButtonText: {
+      fontSize: 14,
+      fontWeight: Platform.select({
+        ios: '500',
+        android: '400',
+        default: '500',
+      }),
+    },
+
+    tabButtonTextActive: {
+      color: '#FFFFFF',
+      fontWeight: Platform.select({
+        ios: '600',
+        android: '500',
+        default: '600',
+      }),
+    },
+
+    // Badge styles
+    badge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      alignSelf: 'flex-start',
+    },
+
+    badgeText: {
+      fontSize: 12,
+      fontWeight: Platform.select({
+        ios: '500',
+        android: '400',
+        default: '500',
+      }),
+    },
+
+    // Avatar styles
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    avatarSmall: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+    },
+
+    avatarLarge: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+    },
+
+    // Icon button styles
+    iconButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+
+    // Divider styles
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 16,
+    },
+
+    // Error and success message styles
+    messageContainer: {
+      padding: 16,
+      borderRadius: 8,
+      marginBottom: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+
+    errorMessage: {
+      backgroundColor: colorUtils.withOpacity(colors.error, 0.1),
+      borderWidth: 1,
+      borderColor: colorUtils.withOpacity(colors.error, 0.2),
+    },
+
+    successMessage: {
+      backgroundColor: colorUtils.withOpacity(colors.success, 0.1),
+      borderWidth: 1,
+      borderColor: colorUtils.withOpacity(colors.success, 0.2),
+    },
+
+    messageText: {
+      flex: 1,
+      fontSize: 14,
+      marginLeft: 12,
+    },
+
+    // Loading spinner styles
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 40,
+    },
+
+    loadingText: {
+      marginTop: 16,
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: 'center',
     },
   });
-};
-
-// Color utilities for cross-platform consistency
-export const colorUtils = {
-  withOpacity: (color: string, opacity: number) => {
-    // Handle both hex and rgba colors
-    if (color.startsWith('#')) {
-      const hex = color.replace('#', '');
-      const r = parseInt(hex.substr(0, 2), 16);
-      const g = parseInt(hex.substr(2, 2), 16);
-      const b = parseInt(hex.substr(4, 2), 16);
-      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    }
-    return color;
-  },
-  
-  getStatusColor: (status: string, colors: any) => {
-    switch (status.toLowerCase()) {
-      case 'confirmed':
-      case 'active':
-      case 'success':
-        return colors.success;
-      case 'pending':
-      case 'warning':
-        return colors.warning;
-      case 'cancelled':
-      case 'error':
-      case 'failed':
-        return colors.error;
-      case 'completed':
-      case 'inactive':
-        return colors.textSecondary;
-      default:
-        return colors.textSecondary;
-    }
-  },
-};
-
-// Animation utilities
-export const animationUtils = {
-  spring: Platform.select({
-    ios: {
-      tension: 100,
-      friction: 8,
-    },
-    android: {
-      tension: 80,
-      friction: 10,
-    },
-    default: {
-      tension: 100,
-      friction: 8,
-    },
-  }),
-  
-  timing: Platform.select({
-    ios: {
-      duration: 250,
-    },
-    android: {
-      duration: 200,
-    },
-    default: {
-      duration: 200,
-    },
-  }),
 };

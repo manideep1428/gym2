@@ -17,7 +17,7 @@ if (Notifications) {
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldPlaySound: true,
-      shouldSetBadge: false,
+      shouldSetBadge: true,
       shouldShowBanner: true,
       shouldShowList: true,
     }),
@@ -114,7 +114,7 @@ class NotificationService {
         title,
         body,
         data,
-        sound: true,
+        sound: 'notifications.mp3', // Use custom sound
       },
       trigger: null, // Show immediately
     });
@@ -150,7 +150,7 @@ class NotificationService {
             trainerName,
             clientName,
           } as NotificationData,
-          sound: true,
+          sound: 'notifications.mp3', // Use custom sound
         },
         trigger: {
           type: 'date',
@@ -187,13 +187,21 @@ class NotificationService {
     try {
       const message = {
         to: pushToken,
-        sound: 'default',
+        sound: 'default', // Use default sound for better compatibility
         title,
         body,
         data,
+        priority: 'high',
+        channelId: 'default'
       };
 
-      await fetch('https://exp.host/--/api/v2/push/send', {
+      console.log('🚀 Sending push notification:', {
+        to: pushToken.substring(0, 20) + '...',
+        title,
+        body: body.substring(0, 50) + '...'
+      });
+
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -202,8 +210,16 @@ class NotificationService {
         },
         body: JSON.stringify(message),
       });
+
+      const result = await response.json();
+      console.log('📬 Push notification response:', result);
+      
+      if (!response.ok) {
+        throw new Error(`Push notification failed: ${JSON.stringify(result)}`);
+      }
     } catch (error) {
-      console.error('Error sending push notification:', error);
+      console.error('❌ Error sending push notification:', error);
+      throw error; // Re-throw to help with debugging
     }
   }
 
@@ -222,17 +238,48 @@ class NotificationService {
         .eq('user_id', trainerId)
         .single();
 
-      if (trainerProfile?.push_token && settings?.push_notifications && settings?.booking_requests) {
-        await this.sendPushNotification(
-          trainerProfile.push_token,
-          'New Booking Request',
-          `${clientName} wants to book a session on ${sessionTime}`,
-          {
-            type: 'booking_request',
-            clientName,
-            sessionTime,
-          }
-        );
+      const title = 'New Booking Request';
+      const message = `${clientName} wants to book a session on ${sessionTime}`;
+
+      console.log('📱 Sending booking request notification:', {
+        trainerId,
+        hasToken: !!trainerProfile?.push_token,
+        token: trainerProfile?.push_token?.substring(0, 20) + '...',
+        settings: settings
+      });
+
+      // Always create in-app notification
+      await supabase.from('notifications').insert({
+        user_id: trainerId,
+        title,
+        message,
+        type: 'booking_request',
+        data: { clientName, sessionTime }
+      });
+
+      // Send push notification if token exists (be more lenient with settings)
+      if (trainerProfile?.push_token) {
+        // Default to allowing notifications if settings don't exist or are not explicitly disabled
+        const shouldSendPush = !settings || settings.push_notifications !== false;
+        const shouldSendBookingRequests = !settings || settings.booking_requests !== false;
+        
+        if (shouldSendPush && shouldSendBookingRequests) {
+          console.log('📤 Sending push notification to trainer');
+          await this.sendPushNotification(
+            trainerProfile.push_token,
+            title,
+            message,
+            {
+              type: 'booking_request',
+              clientName,
+              sessionTime,
+            }
+          );
+        } else {
+          console.log('🔕 Push notification disabled by settings');
+        }
+      } else {
+        console.log('❌ No push token found for trainer');
       }
     } catch (error) {
       console.error('Error sending booking request notification:', error);
@@ -259,22 +306,51 @@ class NotificationService {
         .eq('user_id', clientId)
         .single();
 
-      if (clientProfile?.push_token && settings?.push_notifications && settings?.booking_confirmations) {
-        const title = status === 'accepted' ? 'Booking Confirmed!' : 'Booking Declined';
-        const body = status === 'accepted' 
-          ? `${trainerName} confirmed your session on ${sessionTime}`
-          : `${trainerName} declined your session request for ${sessionTime}`;
+      const title = status === 'accepted' ? 'Booking Confirmed!' : 'Booking Declined';
+      const body = status === 'accepted' 
+        ? `${trainerName} confirmed your session on ${sessionTime}`
+        : `${trainerName} declined your session request for ${sessionTime}`;
 
-        await this.sendPushNotification(
-          clientProfile.push_token,
-          title,
-          body,
-          {
-            type: status === 'accepted' ? 'booking_accepted' : 'booking_rejected',
-            trainerName,
-            sessionTime,
-          }
-        );
+      console.log('📱 Sending booking status notification:', {
+        clientId,
+        status,
+        hasToken: !!clientProfile?.push_token,
+        token: clientProfile?.push_token?.substring(0, 20) + '...',
+        settings: settings
+      });
+
+      // Always create in-app notification
+      await supabase.from('notifications').insert({
+        user_id: clientId,
+        title,
+        message: body,
+        type: status === 'accepted' ? 'booking_confirmed' : 'booking_cancelled',
+        data: { trainerName, sessionTime, status }
+      });
+
+      // Send push notification if token exists (be more lenient with settings)
+      if (clientProfile?.push_token) {
+        // Default to allowing notifications if settings don't exist or are not explicitly disabled
+        const shouldSendPush = !settings || settings.push_notifications !== false;
+        const shouldSendBookingConfirmations = !settings || settings.booking_confirmations !== false;
+        
+        if (shouldSendPush && shouldSendBookingConfirmations) {
+          console.log('📤 Sending push notification to client');
+          await this.sendPushNotification(
+            clientProfile.push_token,
+            title,
+            body,
+            {
+              type: status === 'accepted' ? 'booking_accepted' : 'booking_rejected',
+              trainerName,
+              sessionTime,
+            }
+          );
+        } else {
+          console.log('🔕 Push notification disabled by settings');
+        }
+      } else {
+        console.log('❌ No push token found for client');
       }
     } catch (error) {
       console.error('Error sending booking status notification:', error);
@@ -564,6 +640,69 @@ class NotificationService {
     }
   }
 
+  // Test notification sound
+  async testNotificationSound(): Promise<void> {
+    if (!Notifications) {
+      console.warn('Notifications not available in this environment');
+      return;
+    }
+
+    try {
+      await this.sendLocalNotification(
+        'Test Notification',
+        'Testing custom notification sound from GYM app!',
+        { type: 'booking_request' }
+      );
+    } catch (error) {
+      console.error('Error testing notification sound:', error);
+    }
+  }
+
+  // Debug function to check push token and settings
+  async debugNotificationSetup(userId: string): Promise<void> {
+    try {
+      console.log('🔍 Debugging notification setup for user:', userId);
+      
+      // Check push token
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('push_token, name, role')
+        .eq('id', userId)
+        .single();
+      
+      console.log('📱 User profile:', {
+        name: profile?.name,
+        role: profile?.role,
+        hasToken: !!profile?.push_token,
+        tokenPreview: profile?.push_token?.substring(0, 20) + '...'
+      });
+      
+      // Check notification settings
+      const { data: settings } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      console.log('⚙️ Notification settings:', settings);
+      
+      // Test push notification if token exists
+      if (profile?.push_token) {
+        console.log('🧪 Testing push notification...');
+        await this.sendPushNotification(
+          profile.push_token,
+          'Debug Test',
+          'This is a test push notification from GYM app',
+          { type: 'booking_request' }
+        );
+      } else {
+        console.log('❌ No push token found - user needs to register for notifications');
+      }
+    } catch (error) {
+      console.error('❌ Debug notification setup error:', error);
+    }
+  }
+
   // Initialize notification listeners
   initializeNotificationListeners(): void {
     if (!Notifications) {
@@ -573,11 +712,13 @@ class NotificationService {
 
     // Handle notification received while app is in foreground
     Notifications.addNotificationReceivedListener((notification: any) => {
+      console.log('Notification received in foreground:', notification);
     });
 
     // Handle notification tapped
     Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data as unknown as NotificationData;
+      console.log('Notification tapped:', data);
       
       // Handle navigation based on notification type
       // This would be implemented based on your navigation structure

@@ -23,7 +23,7 @@ export interface ThemeContextType {
 }
 
 const lightTheme = {
-  primary: '#6366F1',
+  primary: '#22C1C3',
   secondary: '#8B5CF6',
   accent: '#06B6D4',
   background: '#FFFFFF',
@@ -40,7 +40,7 @@ const lightTheme = {
 };
 
 const darkTheme = {
-  primary: '#818CF8',
+  primary: '#22C1C3',
   secondary: '#A78BFA',
   accent: '#22D3EE',
   background: '#0F172A',

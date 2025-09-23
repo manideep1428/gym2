@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView, RefreshControl } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton } from '@/components/SkeletonLoader';
@@ -25,6 +25,7 @@ export default function ClientHome() {
   const [userPackagesLoading, setUserPackagesLoading] = useState(false);
   const [pendingPaymentsLoading, setPendingPaymentsLoading] = useState(false);
   const [suggestedTrainersLoading, setSuggestedTrainersLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchUpcomingSessions = async () => {
     if (!userProfile) return;
@@ -161,6 +162,24 @@ export default function ClientHome() {
     }
   }, [userProfile, hasConnectedTrainer]);
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchUpcomingSessions(),
+        fetchUserPackages(),
+        fetchPendingPayments(),
+        checkConnectedTrainers()
+      ]);
+      // Fetch suggested trainers after checking connected trainers
+      await fetchSuggestedTrainers();
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const styles = createStyles(colors);
 
   return (
@@ -188,6 +207,14 @@ export default function ClientHome() {
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Book Session Card - Always show */}
         <Pressable 

@@ -2,12 +2,12 @@ import { Tabs } from 'expo-router';
 import {
   ChartBar as BarChart3,
   Calendar,
-  Clock,
   Users,
   CreditCard,
   Package,
   Settings,
   Bell,
+  LayoutDashboard,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -69,7 +69,7 @@ export default function TrainerTabLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color }) => (
-            <BarChart3 color={color} size={iconSize} />
+            <LayoutDashboard color={color} size={iconSize} />
           ),
         }}
       />
@@ -95,20 +95,6 @@ export default function TrainerTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="notifications"
-        options={{
-          title: 'Notifications',
-          tabBarIcon: ({ color }) => (
-            <View style={{ position: 'relative' }}>
-              <Bell color={color} size={iconSize} />
-              {unreadCount > 0 && (
-                <NotificationBadge count={unreadCount} size="small" />
-              )}
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="client-requests"
         options={{
           href: null, // Hide from tab bar
@@ -116,6 +102,12 @@ export default function TrainerTabLayout() {
       />
       <Tabs.Screen
         name="availability"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
         options={{
           href: null, // Hide from tab bar
         }}
@@ -152,7 +144,14 @@ export default function TrainerTabLayout() {
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <Settings color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Settings color={color} size={iconSize} />
+              {unreadCount > 0 && (
+                <NotificationBadge count={unreadCount} size="small" />
+              )}
+            </View>
+          ),
         }}
       />
     </Tabs>

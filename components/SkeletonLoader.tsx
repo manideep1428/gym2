@@ -182,23 +182,49 @@ export const ListItemSkeleton: React.FC<{
   );
 };
 
-// Grid Item Skeleton
-export const GridItemSkeleton: React.FC<{
-  height?: number;
-  showStats?: boolean;
-}> = ({ height = 140, showStats = false }) => {
+// Calendar Skeleton
+export const CalendarSkeleton = () => {
   const { colors } = useTheme();
 
   return (
-    <View style={[styles.gridItem, { height, backgroundColor: colors.card }]}>
-      <View style={styles.gridIcon}>
-        <SkeletonLoader variant="circle" width={32} height={32} />
+    <View style={styles.calendarSkeletonContainer}>
+      {/* Calendar Header */}
+      <View style={styles.calendarSkeletonHeader}>
+        <SkeletonLoader variant="circle" width={20} height={20} />
+        <SkeletonLoader variant="text" width={120} height={18} />
+        <SkeletonLoader variant="circle" width={20} height={20} />
       </View>
-      <View style={styles.gridContent}>
-        <SkeletonLoader variant="text" width={80} height={16} style={{ marginBottom: 4 }} />
-        {showStats && (
+
+      {/* Days Header */}
+      <View style={styles.calendarDaysHeader}>
+        {Array.from({ length: 7 }).map((_, index) => (
+          <SkeletonLoader key={index} variant="text" width={30} height={12} />
+        ))}
+      </View>
+
+      {/* Calendar Grid */}
+      <View style={styles.calendarGrid}>
+        {Array.from({ length: 42 }).map((_, index) => (
+          <View key={index} style={styles.calendarDateSkeleton}>
+            <SkeletonLoader variant="circle" width={32} height={32} />
+            {/* Random availability dots */}
+            {Math.random() > 0.7 && (
+              <View style={[styles.availabilityDotSkeleton, { backgroundColor: colors.primary }]} />
+            )}
+          </View>
+        ))}
+      </View>
+
+      {/* Legend */}
+      <View style={styles.calendarLegend}>
+        <View style={styles.legendItem}>
+          <SkeletonLoader variant="circle" width={12} height={12} />
           <SkeletonLoader variant="text" width={60} height={12} />
-        )}
+        </View>
+        <View style={styles.legendItem}>
+          <SkeletonLoader variant="circle" width={12} height={12} />
+          <SkeletonLoader variant="text" width={50} height={12} />
+        </View>
       </View>
     </View>
   );
@@ -708,32 +734,64 @@ export const TrainerScheduleSkeleton = () => {
   
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <SkeletonLoader width={180} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
-        <SkeletonLoader width={220} height={16} borderRadius={4} />
+        <View style={styles.headerRow}>
+          <SkeletonLoader variant="circle" width={24} height={24} />
+          <SkeletonLoader width={120} height={20} borderRadius={4} />
+          <View style={styles.headerActions}>
+            <SkeletonLoader width={80} height={32} borderRadius={16} />
+            <SkeletonLoader variant="circle" width={40} height={40} />
+          </View>
+        </View>
+      </View>
+
+      {/* View Toggle */}
+      <View style={styles.viewToggleSkeleton}>
+        <SkeletonLoader width={100} height={36} borderRadius={8} />
+        <SkeletonLoader width={100} height={36} borderRadius={8} />
+      </View>
+
+      {/* Helper Section */}
+      <View style={styles.helperSkeleton}>
+        <SkeletonLoader width={160} height={16} borderRadius={4} style={{ marginBottom: 8 }} />
+        <SkeletonLoader width="90%" height={14} borderRadius={4} />
       </View>
 
       <View style={styles.content}>
-        {/* Weekly Calendar Skeleton */}
-        <View style={styles.calendarContainer}>
-          {/* Days Header */}
-          <View style={styles.daysHeader}>
-            {Array.from({ length: 7 }).map((_, index) => (
-              <SkeletonLoader key={index} width={40} height={16} borderRadius={4} />
-            ))}
-          </View>
-          
-          {/* Time Slots Grid */}
-          <View style={styles.timeSlotsGrid}>
-            {Array.from({ length: 6 }).map((_, rowIndex) => (
-              <View key={rowIndex} style={styles.timeSlotRow}>
-                <SkeletonLoader width={60} height={14} borderRadius={4} style={{ marginRight: 12 }} />
-                {Array.from({ length: 7 }).map((_, colIndex) => (
-                  <SkeletonLoader key={colIndex} width={40} height={40} borderRadius={8} />
-                ))}
+        {/* Calendar Skeleton */}
+        <CalendarSkeleton />
+        
+        {/* Weekly View Skeleton */}
+        <View style={styles.weeklyViewSkeleton}>
+          {Array.from({ length: 7 }).map((_, dayIndex) => (
+            <View key={dayIndex} style={[styles.daySkeleton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.dayHeaderSkeleton}>
+                <SkeletonLoader width={80} height={18} borderRadius={4} />
+                <SkeletonLoader variant="circle" width={28} height={28} />
               </View>
-            ))}
-          </View>
+              {/* Random time slots */}
+              {Math.random() > 0.5 ? (
+                <View style={styles.timeSlotsSkeleton}>
+                  {Array.from({ length: Math.floor(Math.random() * 3) + 1 }).map((_, slotIndex) => (
+                    <View key={slotIndex} style={[styles.timeSlotSkeleton, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+                      <View style={styles.timeInfoSkeleton}>
+                        <SkeletonLoader variant="circle" width={16} height={16} />
+                        <SkeletonLoader width={100} height={14} borderRadius={4} />
+                      </View>
+                      <SkeletonLoader variant="circle" width={24} height={24} />
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyStateSkeleton}>
+                  <SkeletonLoader variant="circle" width={24} height={24} style={{ marginBottom: 8 }} />
+                  <SkeletonLoader width={120} height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <SkeletonLoader width={140} height={12} borderRadius={4} />
+                </View>
+              )}
+            </View>
+          ))}
         </View>
       </View>
     </View>
@@ -1021,22 +1079,111 @@ const styles = StyleSheet.create({
   listContent: {
     flex: 1,
   },
-  gridItem: {
+  // Calendar Skeleton Styles
+  calendarSkeletonContainer: {
+    gap: 16,
+  },
+  calendarSkeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 20,
+  },
+  calendarDaysHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 10,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    gap: 8,
+  },
+  calendarDateSkeleton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginBottom: 8,
+  },
+  availabilityDotSkeleton: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    position: 'absolute',
+    bottom: 4,
+  },
+  calendarLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginTop: 20,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  // Enhanced Trainer Schedule Skeleton Styles
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  viewToggleSkeleton: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    gap: 4,
+  },
+  helperSkeleton: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 12,
+  },
+  weeklyViewSkeleton: {
+    gap: 16,
+  },
+  daySkeleton: {
+    borderWidth: 1,
     borderRadius: 16,
     padding: 16,
-    margin: 6,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  gridIcon: {
+  dayHeaderSkeleton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
-  gridContent: {
+  timeSlotsSkeleton: {
+    gap: 8,
+  },
+  timeSlotSkeleton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  timeInfoSkeleton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyStateSkeleton: {
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   bookingCardSkeleton: {
     borderRadius: 16,
@@ -1139,9 +1286,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: 12,
-  },
-  timeSlotsGrid: {
-    gap: 8,
   },
   timeSlotRow: {
     flexDirection: 'row',

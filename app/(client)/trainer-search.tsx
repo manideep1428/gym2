@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +40,7 @@ export default function TrainerSearchScreen() {
   const [trainerToRemove, setTrainerToRemove] = useState<any>(null);
   const [removeTimer, setRemoveTimer] = useState(5);
   const [canRemove, setCanRemove] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Replace single loading state with targeted loading states
   const [trainersLoading, setTrainersLoading] = useState(true);
@@ -56,6 +57,20 @@ export default function TrainerSearchScreen() {
   useEffect(() => {
     applyFiltersAndSearch();
   }, [searchQuery, trainers, filters]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchTrainers(),
+        fetchClientRelationships()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing trainer search:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedTrainer) {
@@ -126,18 +141,48 @@ export default function TrainerSearchScreen() {
     setRequestingTrainer(trainerId);
     
     try {
-      const { data: relationshipData, error } = await supabase
-        .from('client_trainer_relationships')
-        .insert({
-          client_id: userProfile.id,
-          trainer_id: trainerId,
-          client_message: message,
-          status: 'pending'
-        })
-        .select()
-        .single();
+      // Check if there's an existing terminated relationship
+      const existingRelationship = clientRelationships.find(rel => 
+        rel.trainer_id === trainerId && rel.status === 'terminated'
+      );
 
-      if (error) throw error;
+      let relationshipData;
+      
+      if (existingRelationship) {
+        // Update existing terminated relationship to pending
+        const { data, error } = await supabase
+          .from('client_trainer_relationships')
+          .update({
+            status: 'pending',
+            client_message: message,
+            requested_at: new Date().toISOString(),
+            approved_at: null,
+            rejected_at: null,
+            terminated_at: null,
+            trainer_response: null
+          })
+          .eq('id', existingRelationship.id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        relationshipData = data;
+      } else {
+        // Create new relationship
+        const { data, error } = await supabase
+          .from('client_trainer_relationships')
+          .insert({
+            client_id: userProfile.id,
+            trainer_id: trainerId,
+            client_message: message,
+            status: 'pending'
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        relationshipData = data;
+      }
 
       // Send notification to trainer
       const notificationService = NotificationService.getInstance();
@@ -162,7 +207,12 @@ export default function TrainerSearchScreen() {
   };
 
   const getRelationshipStatus = (trainerId: string) => {
-    return clientRelationships.find(rel => rel.trainer_id === trainerId)?.status || null;
+    const relationship = clientRelationships.find(rel => rel.trainer_id === trainerId);
+    // If relationship is terminated, allow re-requesting
+    if (relationship?.status === 'terminated') {
+      return null;
+    }
+    return relationship?.status || null;
   };
 
   const showRemoveConfirmation = (trainer: Profile) => {
@@ -524,6 +574,16 @@ export default function TrainerSearchScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.trainersList}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+            title="Pull to refresh trainers"
+            titleColor={colors.textSecondary}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Search color={colors.textSecondary} size={48} />

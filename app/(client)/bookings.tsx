@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Booking, Profile } from '@/lib/supabase';
@@ -13,6 +13,7 @@ export default function ClientBookings() {
   const { userProfile } = useAuth();
   const [bookings, setBookings] = useState<(Booking & { trainer: Profile })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
 
   const styles = createStyles(colors);
@@ -64,6 +65,18 @@ export default function ClientBookings() {
       console.error('Error fetching bookings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchBookings();
+      await checkCalendarConnection();
+    } catch (error) {
+      console.error('Error refreshing bookings:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -191,7 +204,20 @@ export default function ClientBookings() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+            title="Pull to refresh bookings"
+            titleColor={colors.textSecondary}
+          />
+        }
+      >
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>My Bookings</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>

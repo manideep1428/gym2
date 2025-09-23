@@ -10,11 +10,17 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.manideep1428.gymupdated",
       "infoPlist": {
         "UIBackgroundModes": [
           "background-fetch",
           "remote-notification"
-        ]
+        ],
+        "NSUserNotificationsUsageDescription": "This app uses notifications to keep you updated about booking confirmations, session reminders, and trainer requests."
+      },
+      "notification": {
+        "icon": "./assets/images/icon.png",
+        "sound": "./assets/notifications.mp3"
       }
     },
     "web": {
@@ -31,7 +37,10 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#ffffff",
-          "mode": "production"
+          "mode": "production",
+          "sounds": [
+            "./assets/notifications.mp3"
+          ]
         }
       ]
     ],
@@ -50,14 +59,29 @@
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "WAKE_LOCK"
-      ]
+        "WAKE_LOCK",
+        "NOTIFICATIONS",
+        "FOREGROUND_SERVICE"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "notification": {
+        "icon": "./assets/images/icon.png",
+        "color": "#ffffff",
+        "sound": "./assets/notifications.mp3",
+        "androidMode": "default",
+        "androidCollapsedTitle": "GYM App"
+      }
     },
     "notification": {
       "icon": "./assets/images/icon.png",
       "color": "#ffffff",
+      "sound": "./assets/notifications.mp3",
       "androidMode": "default",
-      "androidCollapsedTitle": "GYM App"
+      "androidCollapsedTitle": "GYM App",
+      "iosDisplayInForeground": true
     }
   }
 }

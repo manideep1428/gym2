@@ -4,7 +4,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase, Notification } from '@/lib/supabase';
-import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart } from 'lucide-react-native';
+import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart, Volume2 } from 'lucide-react-native';
+import NotificationService from '@/lib/notificationService';
 
 export default function ClientNotifications() {
   const { colors } = useTheme();
@@ -58,15 +59,17 @@ export default function ClientNotifications() {
   };
 
   const renderNotificationCard = ({ item: notification }: { item: Notification }) => (
-    <TouchableOpacity
+    <View
       style={[
         styles.notificationCard,
         { backgroundColor: colors.card, borderColor: colors.border },
         !notification.is_read && { backgroundColor: colors.primary + '05', borderColor: colors.primary + '30' }
       ]}
-      onPress={() => handleNotificationPress(notification)}
     >
-      <View style={styles.notificationContent}>
+      <TouchableOpacity
+        style={styles.notificationContent}
+        onPress={() => handleNotificationPress(notification)}
+      >
         <View style={styles.notificationHeader}>
           <View style={styles.iconContainer}>
             {getNotificationIcon(notification.type)}
@@ -90,8 +93,18 @@ export default function ClientNotifications() {
             )}
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+      
+      {!notification.is_read && (
+        <TouchableOpacity
+          style={[styles.markReadButton, { backgroundColor: colors.primary + '10' }]}
+          onPress={() => markAsRead(notification.id)}
+        >
+          <CheckCircle color={colors.primary} size={14} />
+          <Text style={[styles.markReadText, { color: colors.primary }]}>Mark as read</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   const onRefresh = async () => {
@@ -113,6 +126,27 @@ export default function ClientNotifications() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.testSoundButton, { backgroundColor: colors.primary + '10' }]}
+            onPress={async () => {
+              const notificationService = NotificationService.getInstance();
+              await notificationService.testNotificationSound();
+            }}
+          >
+            <Volume2 color={colors.primary} size={14} />
+            <Text style={[styles.testSoundText, { color: colors.primary }]}>Test Sound</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.testSoundButton, { backgroundColor: colors.warning + '10' }]}
+            onPress={async () => {
+              const notificationService = NotificationService.getInstance();
+              if (userProfile) {
+                await notificationService.debugNotificationSetup(userProfile.id);
+              }
+            }}
+          >
+            <Text style={[styles.testSoundText, { color: colors.warning }]}>Debug Push</Text>
+          </TouchableOpacity>
           {notifications.filter(n => !n.is_read).length > 0 && (
             <TouchableOpacity
               style={styles.markAllButton}
@@ -153,6 +187,9 @@ export default function ClientNotifications() {
               refreshing={refreshing}
               onRefresh={onRefresh}
               tintColor={colors.primary}
+              colors={[colors.primary]}
+              title="Pull to refresh notifications"
+              titleColor={colors.textSecondary}
             />
           }
         />
@@ -278,5 +315,31 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  markReadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+    borderRadius: 6,
+  },
+  markReadText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  testSoundButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  testSoundText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
