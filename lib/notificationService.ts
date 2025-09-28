@@ -25,7 +25,7 @@ if (Notifications) {
 }
 
 export interface NotificationData extends Record<string, unknown> {
-  type: 'booking_request' | 'booking_accepted' | 'booking_rejected' | 'session_reminder' | 'booking_cancelled' | 'payment_request' | 'payment_confirmation' | 'connection_request' | 'connection_response';
+  type: 'booking_request' | 'booking_accepted' | 'booking_rejected' | 'session_reminder' | 'booking_cancelled' | 'payment_request' | 'payment_confirmation' | 'connection_request' | 'connection_response' | 'custom_package' | 'package_response';
   bookingId?: string;
   trainerId?: string;
   clientId?: string;
@@ -36,6 +36,9 @@ export interface NotificationData extends Record<string, unknown> {
   amount?: string;
   relationshipId?: string;
   requestStatus?: 'approved' | 'rejected';
+  packageId?: string;
+  packageName?: string;
+  packageStatus?: 'accepted' | 'rejected';
 }
 
 class NotificationService {
@@ -476,58 +479,11 @@ class NotificationService {
     }
   }
 
-  async notifyConnectionRequest(
-    trainerId: string,
-    clientName: string,
-    relationshipId: string,
-    clientMessage?: string
-  ): Promise<void> {
-    try {
-      // Get trainer's push token
-      const { data: trainerProfile } = await supabase
-        .from('profiles')
-        .select('push_token')
-        .eq('id', trainerId)
-        .single();
-
-      if (trainerProfile?.push_token) {
-        const body = clientMessage 
-          ? `${clientName} wants to connect: "${clientMessage}"`
-          : `${clientName} wants to connect with you as their trainer`;
-
-        await this.sendPushNotification(
-          trainerProfile.push_token,
-          'New Connection Request',
-          body,
-          {
-            type: 'connection_request',
-            clientName,
-            relationshipId,
-          }
-        );
-      }
-
-      // Create in-app notification
-      await supabase.from('notifications').insert({
-        user_id: trainerId,
-        title: 'New Connection Request',
-        message: clientMessage 
-          ? `${clientName} wants to connect: "${clientMessage}"`
-          : `${clientName} wants to connect with you as their trainer`,
-        type: 'connection_request',
-        data: { relationshipId, clientName }
-      });
-    } catch (error) {
-      console.error('Error sending connection request notification:', error);
-    }
-  }
-
-  async notifyConnectionResponse(
+  async notifyTrainerAddedClient(
     clientId: string,
     trainerName: string,
-    status: 'approved' | 'rejected',
     relationshipId: string,
-    trainerResponse?: string
+    trainerMessage?: string
   ): Promise<void> {
     try {
       // Get client's push token
@@ -538,22 +494,69 @@ class NotificationService {
         .single();
 
       if (clientProfile?.push_token) {
-        const title = status === 'approved' ? 'Connection Approved!' : 'Connection Request Declined';
-        const body = status === 'approved'
-          ? trainerResponse 
-            ? `${trainerName} approved your request: "${trainerResponse}"`
-            : `${trainerName} approved your connection request!`
-          : trainerResponse
-            ? `${trainerName} declined your request: "${trainerResponse}"`
-            : `${trainerName} declined your connection request`;
+        const body = trainerMessage 
+          ? `${trainerName} added you as their client: "${trainerMessage}"`
+          : `${trainerName} has added you as their client`;
 
         await this.sendPushNotification(
           clientProfile.push_token,
+          'New Trainer Connection',
+          body,
+          {
+            type: 'connection_request',
+            trainerName,
+            relationshipId,
+          }
+        );
+      }
+
+      // Create in-app notification
+      await supabase.from('notifications').insert({
+        user_id: clientId,
+        title: 'New Trainer Connection',
+        message: trainerMessage 
+          ? `${trainerName} added you as their client: "${trainerMessage}"`
+          : `${trainerName} has added you as their client`,
+        type: 'connection_request',
+        data: { relationshipId, trainerName }
+      });
+    } catch (error) {
+      console.error('Error sending trainer connection notification:', error);
+    }
+  }
+
+  async notifyClientResponse(
+    trainerId: string,
+    clientName: string,
+    status: 'approved' | 'rejected',
+    relationshipId: string,
+    clientResponse?: string
+  ): Promise<void> {
+    try {
+      // Get trainer's push token
+      const { data: trainerProfile } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .eq('id', trainerId)
+        .single();
+
+      if (trainerProfile?.push_token) {
+        const title = status === 'approved' ? 'Client Accepted!' : 'Client Declined';
+        const body = status === 'approved'
+          ? clientResponse 
+            ? `${clientName} accepted your invitation: "${clientResponse}"`
+            : `${clientName} accepted your trainer invitation!`
+          : clientResponse
+            ? `${clientName} declined your invitation: "${clientResponse}"`
+            : `${clientName} declined your trainer invitation`;
+
+        await this.sendPushNotification(
+          trainerProfile.push_token,
           title,
           body,
           {
             type: 'connection_response',
-            trainerName,
+            clientName,
             relationshipId,
             requestStatus: status,
           }
@@ -561,24 +564,126 @@ class NotificationService {
       }
 
       // Create in-app notification
-      const title = status === 'approved' ? 'Connection Approved!' : 'Connection Request Declined';
+      const title = status === 'approved' ? 'Client Accepted!' : 'Client Declined';
       const message = status === 'approved'
-        ? trainerResponse 
-          ? `${trainerName} approved your request: "${trainerResponse}"`
-          : `${trainerName} approved your connection request!`
-        : trainerResponse
-          ? `${trainerName} declined your request: "${trainerResponse}"`
-          : `${trainerName} declined your connection request`;
+        ? clientResponse 
+          ? `${clientName} accepted your invitation: "${clientResponse}"`
+          : `${clientName} accepted your trainer invitation!`
+        : clientResponse
+          ? `${clientName} declined your invitation: "${clientResponse}"`
+          : `${clientName} declined your trainer invitation`;
 
       await supabase.from('notifications').insert({
-        user_id: clientId,
+        user_id: trainerId,
         title,
         message,
         type: 'connection_response',
-        data: { relationshipId, trainerName, status }
+        data: { relationshipId, clientName, status }
       });
     } catch (error) {
-      console.error('Error sending connection response notification:', error);
+      console.error('Error sending client response notification:', error);
+    }
+  }
+
+  async notifyCustomPackage(
+    clientId: string,
+    trainerName: string,
+    packageName: string,
+    packageId: string
+  ): Promise<void> {
+    try {
+      // Get client's push token and notification settings
+      const { data: clientProfile } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .eq('id', clientId)
+        .single();
+
+      const { data: settings } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .eq('user_id', clientId)
+        .single();
+
+      if (clientProfile?.push_token && (settings?.push_notifications !== false)) {
+        await this.sendPushNotification(
+          clientProfile.push_token,
+          'New Custom Package',
+          `${trainerName} created a custom package for you: ${packageName}`,
+          {
+            type: 'custom_package',
+            trainerName,
+            packageName,
+            packageId,
+          }
+        );
+      }
+
+      // Create in-app notification
+      await supabase.from('notifications').insert({
+        user_id: clientId,
+        title: 'New Custom Package',
+        message: `${trainerName} created a custom package for you: ${packageName}`,
+        type: 'custom_package',
+        data: { packageId, trainerName, packageName }
+      });
+    } catch (error) {
+      console.error('Error sending custom package notification:', error);
+    }
+  }
+
+  async notifyPackageResponse(
+    trainerId: string,
+    clientName: string,
+    packageName: string,
+    status: 'accepted' | 'rejected',
+    packageId: string
+  ): Promise<void> {
+    try {
+      // Get trainer's push token and notification settings
+      const { data: trainerProfile } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .eq('id', trainerId)
+        .single();
+
+      const { data: settings } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .eq('user_id', trainerId)
+        .single();
+
+      if (trainerProfile?.push_token && (settings?.push_notifications !== false)) {
+        const title = status === 'accepted' ? 'Package Accepted!' : 'Package Declined';
+        const body = `${clientName} ${status} your package: ${packageName}`;
+
+        await this.sendPushNotification(
+          trainerProfile.push_token,
+          title,
+          body,
+          {
+            type: 'package_response',
+            clientName,
+            packageName,
+            packageId,
+            packageStatus: status,
+          }
+        );
+      }
+
+      // Create in-app notification
+      const title = status === 'accepted' ? 'Package Accepted!' : 'Package Declined';
+      const message = `${clientName} ${status} your package: ${packageName}`;
+
+      await supabase.from('notifications').insert({
+        user_id: trainerId,
+        title,
+        message,
+        type: 'package_response',
+        data: { packageId, clientName, packageName, status }
+      });
+    } catch (error) {
+      console.error('Error sending package response notification:', error);
     }
   }
 

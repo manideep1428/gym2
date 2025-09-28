@@ -45,6 +45,9 @@ export interface Profile {
   fitness_goals?: string;
   rating?: number;
   total_reviews?: number;
+  profile_color?: string;
+  theme_preference?: 'light' | 'dark' | 'system';
+  custom_theme_colors?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -132,4 +135,55 @@ export interface ClientTrainerRelationship {
   requested_by: 'client'; // Always client - only clients can initiate requests
   created_at: string;
   updated_at: string;
+}
+
+export interface ThemeColor {
+  id: string;
+  name: string;
+  display_name: string;
+  primary_color: string;
+  secondary_color?: string;
+  accent_color?: string;
+  description?: string;
+  is_premium: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface UserThemePreferences {
+  id: string;
+  user_id: string;
+  theme_color_id?: string;
+  custom_primary_color?: string;
+  custom_secondary_color?: string;
+  custom_accent_color?: string;
+  auto_dark_mode: boolean;
+  dark_mode_schedule: {
+    start: string;
+    end: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserThemeConfig {
+  profile_color: string;
+  theme_preference: 'light' | 'dark' | 'system';
+  custom_theme_colors: Record<string, any>;
+  custom_primary_color?: string;
+  custom_secondary_color?: string;
+  custom_accent_color?: string;
+  auto_dark_mode?: boolean;
+  dark_mode_schedule?: {
+    start: string;
+    end: string;
+  };
+  selected_theme?: {
+    name: string;
+    display_name: string;
+    primary_color: string;
+    secondary_color?: string;
+    accent_color?: string;
+    is_premium: boolean;
+  };
 }

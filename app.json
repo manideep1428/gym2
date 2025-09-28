@@ -42,6 +42,12 @@
             "./assets/notifications.mp3"
           ]
         }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.446928845689-b6ml0pbcdv0a0cq05mqter9099pumlji"
+        }
       ]
     ],
     "experiments": {

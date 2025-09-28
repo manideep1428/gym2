@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ChevronLeft, User, Dumbbell } from 'lucide-react-native';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function Register() {
   const router = useRouter();
@@ -232,9 +233,11 @@ export default function Register() {
           onPress={handleSubmit}
           disabled={loading}
         >
-          <Text style={styles.submitButtonText}>
-            {loading ? 'Creating Account...' : 'Create Account'}
-          </Text>
+          {loading ? (
+            <LoadingSpinner size={20} color="#FFFFFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>Create Account</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity

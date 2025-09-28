@@ -8,6 +8,7 @@ import {
   Settings,
   Bell,
   LayoutDashboard,
+  Clock,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -28,9 +29,15 @@ export default function TrainerTabLayout() {
   const iconSize = getAdaptiveIconSize(adaptiveStyle.height);
   const fontSize = getAdaptiveFontSize(adaptiveStyle.height);
 
-  // Count connection request notifications for trainers
+  // Count connection request notifications for trainers and booking requests for bookings tab, payment confirmations for payments tab
   const connectionRequestCount = notifications.filter(n => 
     !n.is_read && n.type === 'connection_request'
+  ).length;
+  const bookingRequestCount = notifications.filter(n => 
+    !n.is_read && n.type === 'booking_request'
+  ).length;
+  const paymentConfirmationCount = notifications.filter(n => 
+    !n.is_read && n.type === 'payment_confirmation'
   ).length;
 
   return (
@@ -77,7 +84,26 @@ export default function TrainerTabLayout() {
         name="bookings"
         options={{
           title: 'Bookings',
-          tabBarIcon: ({ color }) => <Calendar color={color} size={iconSize} />,
+          href: null,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Calendar color={color} size={iconSize} />
+              {bookingRequestCount > 0 && (
+                <NotificationBadge count={bookingRequestCount} size="small" />
+              )}
+            </View>
+          ),
+        }}
+      />
+            <Tabs.Screen
+        name="availability"
+        options={{
+          title: 'Availability',
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Clock color={color} size={iconSize} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
@@ -95,13 +121,25 @@ export default function TrainerTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="client-requests"
+        name="my-requests"
         options={{
           href: null, // Hide from tab bar
         }}
       />
       <Tabs.Screen
-        name="availability"
+        name="client-search"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="create-package"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="package-management"
         options={{
           href: null, // Hide from tab bar
         }}
@@ -129,7 +167,12 @@ export default function TrainerTabLayout() {
         options={{
           title: 'Payments',
           tabBarIcon: ({ color }) => (
-            <CreditCard color={color} size={iconSize} />
+            <View style={{ position: 'relative' }}>
+              <CreditCard color={color} size={iconSize} />
+              {paymentConfirmationCount > 0 && (
+                <NotificationBadge count={paymentConfirmationCount} size="small" />
+              )}
+            </View>
           ),
         }}
       />

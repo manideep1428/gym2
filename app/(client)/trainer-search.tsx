@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile, TrainingPackage } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
 import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton } from '@/components/SkeletonLoader';
-import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X, UserPlus, Heart, Trash2, AlertTriangle } from 'lucide-react-native';
-import { Users, User } from 'lucide-react-native';
+import { Search, Filter, Star, Calendar, ArrowRight, ArrowLeft, X, ChevronLeft, User, Heart, UserMinus, ChevronDown, Users, Trash2, UserPlus, AlertTriangle, Wifi, WifiOff, RefreshCw } from 'lucide-react-native';
 import { NotificationBadge } from '@/components/NotificationBadge';
 import { useRouter } from 'expo-router';
 
@@ -24,9 +23,6 @@ export default function TrainerSearchScreen() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [trainers, setTrainers] = useState<Profile[]>([]);
-  const [selectedTrainer, setSelectedTrainer] = useState<Profile | null>(null);
-  const [trainerPackages, setTrainerPackages] = useState<TrainingPackage[]>([]);
-  const [showTrainerModal, setShowTrainerModal] = useState(false);
   const [filteredTrainers, setFilteredTrainers] = useState<Profile[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({
@@ -35,19 +31,45 @@ export default function TrainerSearchScreen() {
     location: '',
   });
   const [clientRelationships, setClientRelationships] = useState<any[]>([]);
-  const [requestingTrainer, setRequestingTrainer] = useState<string | null>(null);
+  // Removed requestingTrainer state - clients can no longer request trainers
   const [showRemoveModal, setShowRemoveModal] = useState(false);
-  const [trainerToRemove, setTrainerToRemove] = useState<any>(null);
+  const [trainerToRemove, setTrainerToRemove] = useState<Profile | null>(null);
+  // Removed cancellingRequest state - no longer needed since clients can't cancel requests
+  const [expandedTrainerId, setExpandedTrainerId] = useState<string | null>(null);
   const [removeTimer, setRemoveTimer] = useState(5);
   const [canRemove, setCanRemove] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'my-trainers' | 'search'>('my-trainers');
+  const [networkError, setNetworkError] = useState(false);
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Replace single loading state with targeted loading states
   const [trainersLoading, setTrainersLoading] = useState(true);
   const [relationshipsLoading, setRelationshipsLoading] = useState(true);
-  const [packagesLoading, setPackagesLoading] = useState(false);
 
   const styles = createStyles(colors);
+
+  // Array of 5 different colors for profile initials
+  const profileColors = [
+    '#FF6B6B', // Red
+    '#4ECDC4', // Teal
+    '#45B7D1', // Blue
+    '#96CEB4', // Green
+    '#FECA57', // Yellow
+  ];
+
+  // Function to get profile color - use user's chosen color or fallback to hash
+  const getProfileColor = (trainer: Profile) => {
+    if (trainer.profile_color) {
+      return trainer.profile_color;
+    }
+    // Fallback to hash-based color for users who haven't set a custom color
+    const hash = trainer.id.split('').reduce((acc, char) => {
+      return char.charCodeAt(0) + ((acc << 5) - acc);
+    }, 0);
+    return profileColors[Math.abs(hash) % profileColors.length];
+  };
 
   useEffect(() => {
     fetchTrainers();
@@ -62,8 +84,8 @@ export default function TrainerSearchScreen() {
     setRefreshing(true);
     try {
       await Promise.all([
-        fetchTrainers(),
-        fetchClientRelationships()
+        fetchTrainers(false),
+        fetchClientRelationships(false)
       ]);
     } catch (error) {
       console.error('Error refreshing trainer search:', error);
@@ -72,15 +94,18 @@ export default function TrainerSearchScreen() {
     }
   };
 
-  useEffect(() => {
-    if (selectedTrainer) {
-      fetchTrainerPackages(selectedTrainer.id);
-    }
-  }, [selectedTrainer]);
+  const retryNetworkRequest = async () => {
+    setShowNetworkModal(false);
+    setRetryCount(prev => prev + 1);
+    await fetchTrainers(true);
+    await fetchClientRelationships(false);
+  };
 
-  const fetchTrainers = async () => {
+
+  const fetchTrainers = async (showError = true) => {
     try {
       setTrainersLoading(true);
+      setNetworkError(false);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -90,33 +115,26 @@ export default function TrainerSearchScreen() {
       if (error) throw error;
       setTrainers(data || []);
       setFilteredTrainers(data || []);
+      setRetryCount(0);
     } catch (error) {
       console.error('Error fetching trainers:', error);
+      setNetworkError(true);
+      if (showError && retryCount < 2) {
+        setShowNetworkModal(true);
+      } else if (showError) {
+        Alert.alert(
+          'Network Error',
+          'Unable to load trainers. Please check your internet connection and try again.',
+          [{ text: 'OK' }]
+        );
+      }
     } finally {
       setTrainersLoading(false);
     }
   };
 
-  const fetchTrainerPackages = async (trainerId: string) => {
-    try {
-      setPackagesLoading(true);
-      const { data, error } = await supabase
-        .from('training_packages')
-        .select('*')
-        .eq('created_by', trainerId)
-        .eq('is_active', true);
 
-      if (error) throw error;
-      setTrainerPackages(data || []);
-    } catch (error) {
-      console.error('Error fetching packages:', error);
-      setTrainerPackages([]);
-    } finally {
-      setPackagesLoading(false);
-    }
-  };
-
-  const fetchClientRelationships = async () => {
+  const fetchClientRelationships = async (showError = true) => {
     if (!userProfile) return;
 
     try {
@@ -130,81 +148,15 @@ export default function TrainerSearchScreen() {
       setClientRelationships(data || []);
     } catch (error) {
       console.error('Error fetching client relationships:', error);
+      if (showError) {
+        setNetworkError(true);
+      }
     } finally {
       setRelationshipsLoading(false);
     }
   };
 
-  const requestTrainerRelationship = async (trainerId: string, message: string = '') => {
-    if (!userProfile) return;
-    
-    setRequestingTrainer(trainerId);
-    
-    try {
-      // Check if there's an existing terminated relationship
-      const existingRelationship = clientRelationships.find(rel => 
-        rel.trainer_id === trainerId && rel.status === 'terminated'
-      );
-
-      let relationshipData;
-      
-      if (existingRelationship) {
-        // Update existing terminated relationship to pending
-        const { data, error } = await supabase
-          .from('client_trainer_relationships')
-          .update({
-            status: 'pending',
-            client_message: message,
-            requested_at: new Date().toISOString(),
-            approved_at: null,
-            rejected_at: null,
-            terminated_at: null,
-            trainer_response: null
-          })
-          .eq('id', existingRelationship.id)
-          .select()
-          .single();
-          
-        if (error) throw error;
-        relationshipData = data;
-      } else {
-        // Create new relationship
-        const { data, error } = await supabase
-          .from('client_trainer_relationships')
-          .insert({
-            client_id: userProfile.id,
-            trainer_id: trainerId,
-            client_message: message,
-            status: 'pending'
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        relationshipData = data;
-      }
-
-      // Send notification to trainer
-      const notificationService = NotificationService.getInstance();
-      await notificationService.notifyConnectionRequest(
-        trainerId,
-        userProfile.name,
-        relationshipData.id,
-        message
-      );
-      
-      // Refresh relationships
-      await fetchClientRelationships();
-      
-      // Show success notification
-      alert('Request sent successfully! The trainer will review your request.');
-    } catch (error) {
-      console.error('Error requesting trainer relationship:', error);
-      alert('Failed to send request. Please try again.');
-    } finally {
-      setRequestingTrainer(null);
-    }
-  };
+  // Removed client request functionality - only trainers can initiate relationships now
 
   const getRelationshipStatus = (trainerId: string) => {
     const relationship = clientRelationships.find(rel => rel.trainer_id === trainerId);
@@ -258,9 +210,10 @@ export default function TrainerSearchScreen() {
     }
   };
 
+  // Removed cancelTrainerRequest - clients can no longer cancel requests since only trainers initiate
+
   const renderRelationshipButton = (trainer: Profile) => {
     const relationshipStatus = getRelationshipStatus(trainer.id);
-    const isRequesting = requestingTrainer === trainer.id;
     
     if (relationshipStatus === 'approved') {
       return (
@@ -289,7 +242,7 @@ export default function TrainerSearchScreen() {
           disabled
         >
           <UserPlus color="#FFFFFF" size={14} />
-          <Text style={[styles.relationshipButtonText, { color: '#FFFFFF' }]}>Pending</Text>
+          <Text style={[styles.relationshipButtonText, { color: '#FFFFFF' }]}>Pending Approval</Text>
         </TouchableOpacity>
       );
     }
@@ -306,15 +259,15 @@ export default function TrainerSearchScreen() {
       );
     }
     
+    // No relationship - show info that trainer must add them
     return (
       <TouchableOpacity
-        style={[styles.relationshipButton, { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 1 }]}
-        onPress={() => requestTrainerRelationship(trainer.id)}
-        disabled={isRequesting}
+        style={[styles.relationshipButton, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+        disabled
       >
-        <UserPlus color={colors.primary} size={14} />
-        <Text style={[styles.relationshipButtonText, { color: colors.primary }]}>
-          {isRequesting ? 'Requesting...' : 'Request'}
+        <User color={colors.textSecondary} size={14} />
+        <Text style={[styles.relationshipButtonText, { color: colors.textSecondary }]}>
+          Available
         </Text>
       </TouchableOpacity>
     );
@@ -323,36 +276,50 @@ export default function TrainerSearchScreen() {
   const applyFiltersAndSearch = () => {
     let filtered = trainers;
 
-    // Apply text search
+    // Separate friend trainers from others
+    const friendTrainers = filtered.filter(trainer => {
+      const relationship = clientRelationships.find(rel => rel.trainer_id === trainer.id);
+      return relationship?.status === 'approved';
+    });
+
+    const otherTrainers = filtered.filter(trainer => {
+      const relationship = clientRelationships.find(rel => rel.trainer_id === trainer.id);
+      return relationship?.status !== 'approved';
+    });
+
+    // Apply text search to other trainers only (friends are always shown)
+    let searchFiltered = otherTrainers;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(trainer =>
+      searchFiltered = searchFiltered.filter(trainer =>
         trainer.name.toLowerCase().includes(query) ||
         trainer.bio?.toLowerCase().includes(query) ||
         trainer.specializations?.some(spec => spec.toLowerCase().includes(query))
       );
     }
 
-    // Apply filters
+    // Apply filters to other trainers
     if (filters.specializations.length > 0) {
-      filtered = filtered.filter(trainer =>
+      searchFiltered = searchFiltered.filter(trainer =>
         trainer.specializations?.some(spec => filters.specializations.includes(spec))
       );
     }
 
     if (filters.minRating > 0) {
-      filtered = filtered.filter(trainer => (trainer.rating || 0) >= filters.minRating);
+      searchFiltered = searchFiltered.filter(trainer => (trainer.rating || 0) >= filters.minRating);
     }
 
     if (filters.location.trim()) {
       const locationQuery = filters.location.toLowerCase();
-      filtered = filtered.filter(trainer =>
+      searchFiltered = searchFiltered.filter(trainer =>
         trainer.bio?.toLowerCase().includes(locationQuery) ||
         trainer.name.toLowerCase().includes(locationQuery)
       );
     }
 
-    setFilteredTrainers(filtered);
+    // Combine friend trainers at top, then other trainers
+    const combinedResults = [...friendTrainers, ...searchFiltered];
+    setFilteredTrainers(combinedResults);
   };
 
   const toggleSpecialization = (specialization: string) => {
@@ -364,67 +331,108 @@ export default function TrainerSearchScreen() {
     }));
   };
 
-  const renderTrainerCard = ({ item: trainer }: { item: Profile }) => (
-    <TouchableOpacity
-      style={[styles.trainerCard, { backgroundColor: colors.card }]}
-      onPress={() => {
-        setSelectedTrainer(trainer);
-        setShowTrainerModal(true);
-      }}
-    >
-      <View style={styles.trainerHeader}>
-        <View style={styles.trainerImageContainer}>
-          <Text style={[styles.trainerInitial, { color: colors.primary }]}>
-            {trainer.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.trainerInfo}>
-          <Text style={[styles.trainerName, { color: colors.text }]}>{trainer.name}</Text>
-          <View style={styles.ratingContainer}>
-            <Star color="#FFD700" size={14} fill="#FFD700" />
-            <Text style={[styles.rating, { color: colors.textSecondary }]}>
-              {trainer.rating?.toFixed(1)} ({trainer.total_reviews})
-            </Text>
-          </View>
-        </View>
-        <ArrowRight color={colors.textSecondary} size={20} />
-      </View>
+  const toggleTrainerExpansion = (trainerId: string) => {
+    setExpandedTrainerId(expandedTrainerId === trainerId ? null : trainerId);
+  };
 
-      <View style={styles.trainerDetails}>
-        <Text style={[styles.specializations, { color: colors.textSecondary }]} numberOfLines={1}>
-          {trainer.specializations?.join(' • ')}
-        </Text>
-        <Text style={[styles.experience, { color: colors.primary }]}>
-          {trainer.experience_years} years experience
-        </Text>
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.bookButton, { backgroundColor: colors.primary }]}
-          onPress={() => router.push(`/(client)/book-session?trainerId=${trainer.id}`)}
+  const renderTrainerCard = ({ item: trainer }: { item: Profile }) => {
+    const isExpanded = expandedTrainerId === trainer.id;
+    const relationship = clientRelationships.find(r => r.trainer_id === trainer.id);
+    
+    return (
+      <View style={[styles.compactTrainerCard, { backgroundColor: colors.card }]}>
+        {/* Main Card Content */}
+        <TouchableOpacity 
+          style={styles.compactCardHeader}
+          onPress={() => router.push(`/(client)/trainer-profile?trainerId=${trainer.id}`)}
+          activeOpacity={0.7}
         >
-          <Calendar color="#FFFFFF" size={16} />
-          <Text style={styles.bookButtonText}>Book Session</Text>
+          <View style={styles.compactTrainerInfo}>
+            <View style={[styles.compactImageContainer, { backgroundColor: getProfileColor(trainer) }]}>
+              <Text style={[styles.compactInitial, { color: '#FFFFFF' }]}>
+                {trainer.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.compactDetails}>
+              <Text style={[styles.compactName, { color: colors.text }]} numberOfLines={1}>
+                {trainer.name}
+              </Text>
+              <View style={styles.trainerMeta}>
+                <View style={styles.ratingContainer}>
+                  <Star color="#FFD700" size={12} fill="#FFD700" />
+                  <Text style={[styles.compactRating, { color: colors.textSecondary }]}>
+                    {trainer.rating?.toFixed(1) || 'N/A'}
+                  </Text>
+                </View>
+                <Text style={[styles.compactExperience, { color: colors.primary }]}>
+                  {trainer.experience_years}y exp
+                </Text>
+              </View>
+              <Text style={[styles.compactSpecializations, { color: colors.textSecondary }]} numberOfLines={1}>
+                {trainer.specializations?.slice(0, 2).join(' • ') || 'General Training'}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.compactActions}>
+            <TouchableOpacity
+              style={[styles.compactBookButton, { backgroundColor: colors.primary }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push(`/(client)/book-session?trainerId=${trainer.id}`);
+              }}
+            >
+              <Calendar color="#FFFFFF" size={16} />
+              <Text style={styles.compactBookText}>Book Session</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.expandButton, { backgroundColor: isExpanded ? colors.primary + '20' : colors.surface }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                toggleTrainerExpansion(trainer.id);
+              }}
+            >
+              <ArrowRight 
+                color={isExpanded ? colors.primary : colors.textSecondary} 
+                size={16} 
+                style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
+              />
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
         
-        {renderRelationshipButton(trainer)}
+        {/* Expanded Content */}
+        {isExpanded && (
+          <View style={[styles.expandedContent, { borderTopColor: colors.border }]}>
+            <View style={styles.expandedInfo}>
+              <View style={styles.ratingContainer}>
+                <Star color="#FFD700" size={12} fill="#FFD700" />
+                <Text style={[styles.compactRating, { color: colors.textSecondary }]}>
+                  {trainer.rating?.toFixed(1)} ({trainer.total_reviews})
+                </Text>
+              </View>
+              <Text style={[styles.compactExperience, { color: colors.primary }]}>
+                {trainer.experience_years} years exp
+              </Text>
+            </View>
+            
+            <View style={styles.expandedActions}>
+              <TouchableOpacity
+                style={[styles.expandedActionButton, { backgroundColor: colors.surface }]}
+                onPress={() => router.push(`/(client)/trainer-profile?trainerId=${trainer.id}`)}
+              >
+                <User color={colors.text} size={14} />
+                <Text style={[styles.expandedActionText, { color: colors.text }]}>View Profile</Text>
+              </TouchableOpacity>
+              
+              {renderRelationshipButton(trainer)}
+            </View>
+          </View>
+        )}
       </View>
-    </TouchableOpacity>
-  );
-
-  const renderPackageCard = ({ item: pkg }: { item: TrainingPackage }) => (
-    <View style={[styles.packageCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Text style={[styles.packageName, { color: colors.text }]}>{pkg.name}</Text>
-      <Text style={[styles.packageDescription, { color: colors.textSecondary }]}>{pkg.description}</Text>
-      <View style={styles.packageDetails}>
-        <Text style={[styles.packagePrice, { color: colors.primary }]}>${pkg.price}</Text>
-        <Text style={[styles.packageSessions, { color: colors.textSecondary }]}>
-          {pkg.session_count} sessions • {pkg.duration_days} days
-        </Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const availableSpecializations = Array.from(
     new Set(trainers.flatMap(trainer => trainer.specializations || []))
@@ -438,26 +446,60 @@ export default function TrainerSearchScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft color={colors.text} size={24} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Find Trainers</Text>
-          <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
-            <Filter color={colors.text} size={24} />
+          <Text style={[styles.title, { color: colors.text }]}>Trainers</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              { borderBottomColor: activeTab === 'my-trainers' ? colors.primary : 'transparent' }
+            ]}
+            onPress={() => setActiveTab('my-trainers')}
+          >
+            <Text style={[
+              styles.tabText,
+              { color: activeTab === 'my-trainers' ? colors.primary : colors.textSecondary }
+            ]}>
+              My Trainers (0)
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              { borderBottomColor: activeTab === 'search' ? colors.primary : 'transparent' }
+            ]}
+            onPress={() => setActiveTab('search')}
+          >
+            <Search color={activeTab === 'search' ? colors.primary : colors.textSecondary} size={16} />
+            <Text style={[
+              styles.tabText,
+              { color: activeTab === 'search' ? colors.primary : colors.textSecondary }
+            ]}>
+              Search Trainers
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Search color={colors.textSecondary} size={20} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search trainers, specializations..."
-              placeholderTextColor={colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              editable={false}
-            />
+        {/* Search Bar - Only show in Search tab */}
+        {activeTab === 'search' && (
+          <View style={styles.searchContainer}>
+            <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Search color={colors.textSecondary} size={20} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Search trainers, specializations..."
+                placeholderTextColor={colors.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                editable={false}
+              />
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Loading Skeleton */}
         <View style={styles.trainersList}>
@@ -482,27 +524,70 @@ export default function TrainerSearchScreen() {
           <ArrowLeft color={colors.text} size={24} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Find Trainers</Text>
-        <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
-          <Filter color={colors.text} size={24} />
+        {activeTab === 'search' && (
+          <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
+            <Filter color={colors.text} size={24} />
+          </TouchableOpacity>
+        )}
+        {activeTab === 'my-trainers' && <View style={{ width: 24 }} />}
+      </View>
+
+
+      {/* Tabs */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            { borderBottomColor: activeTab === 'my-trainers' ? colors.primary : 'transparent' }
+          ]}
+          onPress={() => setActiveTab('my-trainers')}
+        >
+          <Text style={[
+            styles.tabText,
+            { color: activeTab === 'my-trainers' ? colors.primary : colors.textSecondary }
+          ]}>
+            My Trainers ({(() => {
+              const myTrainers = clientRelationships.filter(rel => rel.status === 'approved');
+              return myTrainers.length;
+            })()})
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            { borderBottomColor: activeTab === 'search' ? colors.primary : 'transparent' }
+          ]}
+          onPress={() => setActiveTab('search')}
+        >
+          <Search color={activeTab === 'search' ? colors.primary : colors.textSecondary} size={16} />
+          <Text style={[
+            styles.tabText,
+            { color: activeTab === 'search' ? colors.primary : colors.textSecondary }
+          ]}>
+            Search Trainers
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Search color={colors.textSecondary} size={20} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search trainers, specializations..."
-            placeholderTextColor={colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+      {/* Search Bar - Only show in Search tab */}
+      {activeTab === 'search' && (
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Search color={colors.textSecondary} size={20} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Search trainers, specializations..."
+              placeholderTextColor={colors.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
         </View>
-      </View>
+      )}
 
-      {/* Filters */}
-      {showFilters && (
+      {/* Filters - Only show in Search tab */}
+      {activeTab === 'search' && showFilters && (
         <View style={styles.filtersContainer}>
           <Text style={[styles.filtersTitle, { color: colors.text }]}>Filters</Text>
 
@@ -560,137 +645,119 @@ export default function TrainerSearchScreen() {
         </View>
       )}
 
-      {/* Results Count */}
-      <View style={styles.resultsHeader}>
-        <Text style={[styles.resultsText, { color: colors.textSecondary }]}>
-          {filteredTrainers.length} trainer{filteredTrainers.length !== 1 ? 's' : ''} found
-        </Text>
-      </View>
-
-      {/* Trainers List */}
-      <FlatList
-        data={filteredTrainers}
-        renderItem={renderTrainerCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.trainersList}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-            title="Pull to refresh trainers"
-            titleColor={colors.textSecondary}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Search color={colors.textSecondary} size={48} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No trainers found matching your criteria
-            </Text>
-          </View>
-        }
-      />
-
-      {/* Trainer Details Modal */}
-      <Modal
-        visible={showTrainerModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowTrainerModal(false)}
-      >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowTrainerModal(false)} style={styles.backButton}>
-              <X color={colors.text} size={24} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Trainer Details</Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          {selectedTrainer && (
-            <ScrollView style={styles.modalContent}>
-              <View style={styles.profileHeader}>
-                <View style={styles.profileImageContainer}>
-                  <Text style={[styles.profileInitial, { color: colors.primary }]}>
-                    {selectedTrainer.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.profileInfo}>
-                  <Text style={[styles.profileName, { color: colors.text }]}>{selectedTrainer.name}</Text>
-                  <View style={styles.profileRating}>
-                    <Star color="#FFD700" size={20} fill="#FFD700" />
-                    <Text style={[styles.profileRatingText, { color: colors.textSecondary }]}>
-                      {selectedTrainer.rating?.toFixed(1)} ({selectedTrainer.total_reviews} reviews)
-                    </Text>
-                  </View>
-                  <Text style={[styles.profileExperience, { color: colors.primary }]}>
-                    {selectedTrainer.experience_years} years of experience
-                  </Text>
-                </View>
+      {/* Tab Content */}
+      {activeTab === 'my-trainers' ? (
+        (() => {
+          const myTrainers = trainers.filter(trainer => {
+            const relationship = clientRelationships.find(rel => rel.trainer_id === trainer.id);
+            return relationship?.status === 'approved';
+          });
+          
+          if (relationshipsLoading) {
+            return (
+              <View style={styles.trainersList}>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <CardSkeleton
+                    key={index}
+                    height={120}
+                    hasAvatar={true}
+                    lines={3}
+                  />
+                ))}
               </View>
-
-              <View style={styles.profileSection}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-                <Text style={[styles.bio, { color: colors.textSecondary }]}>
-                  {selectedTrainer.bio || 'No bio available'}
+            );
+          }
+          
+          if (myTrainers.length === 0) {
+            return (
+              <View style={styles.emptyContainer}>
+                <Heart color={colors.textSecondary} size={48} />
+                <Text style={[styles.emptyText, { color: colors.text }]}>No connected trainers</Text>
+                <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+                  Trainers will add you as their client when they choose to work with you
                 </Text>
               </View>
-
-              <View style={styles.profileSection}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Specializations</Text>
-                <View style={styles.specializationTags}>
-                  {selectedTrainer.specializations?.map((spec, index) => (
-                    <View key={index} style={[styles.specializationTag, { backgroundColor: colors.primary + '20', borderColor: colors.primary }]}>
-                      <Text style={[styles.specializationTagText, { color: colors.primary }]}>{spec}</Text>
-                    </View>
-                  ))}
+            );
+          }
+          
+          return (
+            <FlatList
+              data={myTrainers}
+              renderItem={renderTrainerCard}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.trainersList}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={colors.primary}
+                  colors={[colors.primary]}
+                  title="Pull to refresh my trainers"
+                  titleColor={colors.textSecondary}
+                />
+              }
+            />
+          );
+        })()
+      ) : (
+        (() => {
+          const searchTrainers = filteredTrainers.filter(trainer => {
+            const relationship = clientRelationships.find(rel => rel.trainer_id === trainer.id);
+            return relationship?.status !== 'approved';
+          });
+          
+          return (
+            <FlatList
+              data={searchTrainers}
+              renderItem={renderTrainerCard}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.trainersList}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={colors.primary}
+                  colors={[colors.primary]}
+                  title="Pull to refresh trainers"
+                  titleColor={colors.textSecondary}
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  {networkError ? (
+                    <>
+                      <WifiOff color={colors.error} size={48} />
+                      <Text style={[styles.emptyText, { color: colors.text }]}>
+                        Connection Problem
+                      </Text>
+                      <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+                        Unable to load trainers. Check your internet connection.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.retryButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+                        onPress={retryNetworkRequest}
+                      >
+                        <RefreshCw color="#FFFFFF" size={16} />
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <Search color={colors.textSecondary} size={48} />
+                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                        No trainers found matching your criteria
+                      </Text>
+                    </>
+                  )}
                 </View>
-              </View>
+              }
+            />
+          );
+        })()
+      )}
 
-              <View style={styles.profileSection}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Available Packages</Text>
-                {packagesLoading ? (
-                  <View style={{ gap: 12 }}>
-                    <CardSkeleton height={80} lines={2} />
-                    <CardSkeleton height={80} lines={2} />
-                  </View>
-                ) : trainerPackages.length === 0 ? (
-                  <View style={[styles.noPackagesContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                    <Text style={[styles.noPackagesText, { color: colors.textSecondary }]}>
-                      No packages offering
-                    </Text>
-                  </View>
-                ) : (
-                  <FlatList
-                    data={trainerPackages}
-                    renderItem={renderPackageCard}
-                    keyExtractor={(item) => item.id}
-                    scrollEnabled={false}
-                  />
-                )}
-              </View>
-
-              <View style={styles.modalButtonContainer}>
-                <TouchableOpacity
-                  style={[styles.bookButton, { backgroundColor: colors.primary }]}
-                  onPress={() => {
-                    setShowTrainerModal(false);
-                    router.push(`/(client)/book-session?trainerId=${selectedTrainer.id}`);
-                  }}
-                >
-                  <Calendar color="#FFFFFF" size={20} />
-                  <Text style={styles.bookButtonText}>Book Session</Text>
-                </TouchableOpacity>
-                
-                {renderRelationshipButton(selectedTrainer)}
-              </View>
-            </ScrollView>
-          )}
-        </SafeAreaView>
-      </Modal>
 
       {/* Remove Trainer Confirmation Modal */}
       <Modal
@@ -739,6 +806,46 @@ export default function TrainerSearchScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Network Error Modal */}
+      <Modal
+        visible={showNetworkModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowNetworkModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.networkModalContainer, { backgroundColor: colors.card }]}>
+            <View style={styles.networkModalHeader}>
+              <WifiOff color={colors.error} size={32} />
+              <Text style={[styles.networkModalTitle, { color: colors.text }]}>
+                Connection Problem
+              </Text>
+            </View>
+            
+            <Text style={[styles.networkModalMessage, { color: colors.textSecondary }]}>
+              Unable to load trainers. Please check your internet connection and try again.
+            </Text>
+            
+            <View style={styles.networkModalActions}>
+              <TouchableOpacity
+                style={[styles.cancelButton, { backgroundColor: colors.surface }]}
+                onPress={() => setShowNetworkModal(false)}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.retryButton, { backgroundColor: colors.primary }]}
+                onPress={retryNetworkRequest}
+              >
+                <RefreshCw color="#FFFFFF" size={16} />
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -753,6 +860,24 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    gap: 8,
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   backButton: {
     padding: 4,
@@ -836,78 +961,145 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  trainerCard: {
-    borderRadius: 16,
+  compactTrainerCard: {
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  trainerHeader: {
+  compactCardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
-  trainerImageContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.primary + '20',
+  compactTrainerInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+    marginRight: 12,
+  },
+  compactImageContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
-  trainerInitial: {
-    fontSize: 20,
-    fontWeight: '600',
+  compactInitial: {
+    fontSize: 18,
+    fontWeight: '700',
   },
-  trainerInfo: {
+  compactDetails: {
     flex: 1,
+    justifyContent: 'flex-start',
   },
-  trainerName: {
+  compactName: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
+    lineHeight: 20,
+  },
+  trainerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 12,
+  },
+  compactSpecializations: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  compactActions: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 80,
+  },
+  compactBookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 70,
+    justifyContent: 'center',
+  },
+  compactBookText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  expandButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandedContent: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  expandedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  compactRating: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  compactExperience: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  expandedActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  expandedActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  expandedActionText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  rating: {
-    fontSize: 12,
-  },
-  trainerDetails: {
-    marginBottom: 16,
-  },
-  specializations: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
   experience: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  packageSessions: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  bookButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  bookButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -940,6 +1132,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   emptyText: {
     fontSize: 16,
     marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    marginTop: 8,
     textAlign: 'center',
   },
   loadingText: {
@@ -1124,6 +1321,78 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   confirmRemoveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  friendTrainersSection: {
+    marginBottom: 24,
+  },
+  searchResultsSection: {
+    flex: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    gap: 8,
+  },
+  sectionTitleText: {
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+  },
+  friendTrainerCard: {
+    marginBottom: 0,
+  },
+  pendingRequestContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  cancelRequestButton: {
+    padding: 8,
+    borderRadius: 6,
+  },
+  networkModalContainer: {
+    margin: 20,
+    borderRadius: 16,
+    padding: 24,
+    maxWidth: 400,
+    width: '90%',
+  },
+  networkModalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  networkModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  networkModalMessage: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  networkModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  retryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',

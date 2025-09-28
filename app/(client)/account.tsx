@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, ThemeContextType } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
-import { User, Moon, Sun, LogOut, CreditCard as Edit, Settings, Bell, Pencil } from 'lucide-react-native';
+import { User, Moon, Sun, LogOut, CreditCard as Edit, Settings, Bell, Pencil, Palette, X } from 'lucide-react-native';
 import GoogleCalendarIntegration from '@/components/GoogleCalendarIntegration';
+import ColorPicker from '@/components/ColorPicker';
+import { supabase } from '@/lib/supabase';
 
 export default function ClientAccount() {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { userProfile, signOut } = useAuth();
+  const { userProfile, signOut, refreshProfile } = useAuth();
   const router = useRouter();
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [updatingColor, setUpdatingColor] = useState(false);
 
   const styles = createStyles(colors);
 
@@ -24,6 +28,31 @@ export default function ClientAccount() {
         { text: 'Sign Out', style: 'destructive', onPress: signOut },
       ]
     );
+  };
+
+  const handleColorSelect = async (color: string) => {
+    if (!userProfile) return;
+    
+    setUpdatingColor(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ profile_color: color })
+        .eq('id', userProfile.id);
+
+      if (error) throw error;
+      
+      // Refresh user profile to get updated color
+      await refreshProfile();
+      setShowColorPicker(false);
+      
+      Alert.alert('Success', 'Your profile color has been updated!');
+    } catch (error) {
+      console.error('Error updating profile color:', error);
+      Alert.alert('Error', 'Failed to update profile color. Please try again.');
+    } finally {
+      setUpdatingColor(false);
+    }
   };
 
   return (
@@ -71,9 +100,8 @@ export default function ClientAccount() {
 
         {/* Settings Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Settings</Text>
           
-          <View style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
               {isDark ? <Moon color={colors.textSecondary} size={20} /> : <Sun color={colors.textSecondary} size={20} />}
               <Text style={[styles.settingText, { color: colors.text }]}>Dark Mode</Text>
@@ -87,7 +115,20 @@ export default function ClientAccount() {
           </View>
 
           <TouchableOpacity 
-            style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={styles.settingItem}
+            onPress={() => setShowColorPicker(true)}
+          >
+            <View style={styles.settingInfo}>
+              <Palette color={colors.textSecondary} size={20} />
+              <Text style={[styles.settingText, { color: colors.text }]}>Profile Color</Text>
+            </View>
+            {userProfile?.profile_color && (
+              <View style={[styles.colorPreview, { backgroundColor: userProfile.profile_color }]} />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.settingItem}
             onPress={() => router.push('/(client)/notification-settings')}
           >
             <View style={styles.settingInfo}>
@@ -115,6 +156,40 @@ export default function ClientAccount() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Color Picker Modal */}
+      <Modal
+        visible={showColorPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowColorPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Choose Profile Color</Text>
+              <TouchableOpacity
+                onPress={() => setShowColorPicker(false)}
+                style={styles.closeButton}
+              >
+                <X color={colors.textSecondary} size={24} />
+              </TouchableOpacity>
+            </View>
+            
+            <ColorPicker
+              selectedColor={userProfile?.profile_color}
+              onColorSelect={handleColorSelect}
+              title=""
+            />
+            
+            {updatingColor && (
+              <View style={styles.loadingOverlay}>
+                <Text style={[styles.loadingText, { color: colors.text }]}>Updating...</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -189,10 +264,7 @@ const createStyles = (colors: ThemeContextType['colors']) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    padding: 12,
   },
   settingInfo: {
     flexDirection: 'row',
@@ -212,6 +284,54 @@ const createStyles = (colors: ThemeContextType['colors']) => StyleSheet.create({
     paddingVertical: 16,
   },
   signOutText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  colorPreview: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  loadingText: {
     fontSize: 16,
     fontWeight: '500',
   },

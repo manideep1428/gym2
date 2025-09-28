@@ -1,21 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, RefreshControl, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useRouter } from 'expo-router';
 import { supabase, Notification } from '@/lib/supabase';
-import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart, Users, Volume2 } from 'lucide-react-native';
-import NotificationService from '@/lib/notificationService';
-import { TrainerNotificationsSkeleton } from '@/components/SkeletonLoader';
+import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart, Users, Settings } from 'lucide-react-native';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 
 export default function TrainerNotifications() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
   const { notifications, refreshNotifications, markAsRead, markAllAsRead, clearAllNotifications, handleNotificationPress } = useNotifications();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const styles = createStyles(colors);
+
+  const NotificationCardSkeleton = () => (
+    <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.notificationContent}>
+        <SkeletonLoader variant="circle" width={24} height={24} style={{ marginRight: 12 }} />
+        <View style={{ flex: 1 }}>
+          <SkeletonLoader variant="text" width="80%" height={16} style={{ marginBottom: 4 }} />
+          <SkeletonLoader variant="text" width="60%" height={14} style={{ marginBottom: 8 }} />
+          <SkeletonLoader variant="text" width="40%" height={12} />
+        </View>
+        <SkeletonLoader variant="circle" width={8} height={8} />
+      </View>
+    </View>
+  );
 
   useEffect(() => {
     setLoading(false);
@@ -116,35 +131,16 @@ export default function TrainerNotifications() {
     setRefreshing(false);
   };
 
-  if (loading) {
-    return <TrainerNotificationsSkeleton />;
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[styles.testSoundButton, { backgroundColor: colors.primary + '10' }]}
-            onPress={async () => {
-              const notificationService = NotificationService.getInstance();
-              await notificationService.testNotificationSound();
-            }}
+            style={[styles.settingsButton, { backgroundColor: colors.surface }]}
+            onPress={() => router.push('/(trainer)/notification-settings')}
           >
-            <Volume2 color={colors.primary} size={14} />
-            <Text style={[styles.testSoundText, { color: colors.primary }]}>Test Sound</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.testSoundButton, { backgroundColor: colors.warning + '10' }]}
-            onPress={async () => {
-              const notificationService = NotificationService.getInstance();
-              if (userProfile) {
-                await notificationService.debugNotificationSetup(userProfile.id);
-              }
-            }}
-          >
-            <Text style={[styles.testSoundText, { color: colors.warning }]}>Debug Push</Text>
+            <Settings color={colors.textSecondary} size={16} />
           </TouchableOpacity>
           {notifications.filter(n => !n.is_read).length > 0 && (
             <TouchableOpacity
@@ -158,7 +154,23 @@ export default function TrainerNotifications() {
           {notifications.length > 0 && (
             <TouchableOpacity
               style={[styles.clearAllButton, { backgroundColor: colors.error + '10', borderColor: colors.error }]}
-              onPress={clearAllNotifications}
+              onPress={() => {
+                Alert.alert(
+                  'Clear All Notifications',
+                  'Are you sure you want to delete all notifications? This action cannot be undone.',
+                  [
+                    {
+                      text: 'Cancel',
+                      style: 'cancel',
+                    },
+                    {
+                      text: 'Clear All',
+                      style: 'destructive',
+                      onPress: clearAllNotifications,
+                    },
+                  ]
+                );
+              }}
             >
               <Text style={[styles.clearAllText, { color: colors.error }]}>Clear All</Text>
             </TouchableOpacity>
@@ -166,7 +178,15 @@ export default function TrainerNotifications() {
         </View>
       </View>
 
-      {notifications.length === 0 ? (
+      {loading ? (
+        <View style={styles.notificationsList}>
+          <NotificationCardSkeleton />
+          <NotificationCardSkeleton />
+          <NotificationCardSkeleton />
+          <NotificationCardSkeleton />
+          <NotificationCardSkeleton />
+        </View>
+      ) : notifications.length === 0 ? (
         <View style={styles.emptyState}>
           <Bell color={colors.textSecondary} size={48} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No notifications</Text>
@@ -220,7 +240,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24, // Reduced from 28
     fontWeight: 'bold',
   },
   markAllButton: {
@@ -229,7 +249,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 4,
   },
   markAllText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     fontWeight: '500',
   },
   clearAllButton: {
@@ -239,11 +259,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 6,
   },
   clearAllText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     fontWeight: '500',
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
   },
   emptyState: {
     flex: 1,
@@ -252,13 +272,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 16, // Reduced from 20
     fontWeight: '600',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     textAlign: 'center',
   },
   notificationsList: {
@@ -295,20 +315,20 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   notificationTitle: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     marginBottom: 4,
   },
   notificationMessage: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12, // Reduced from 14
+    lineHeight: 18, // Adjusted line height
   },
   notificationMeta: {
     alignItems: 'flex-end',
     gap: 4,
   },
   notificationTime: {
-    fontSize: 12,
+    fontSize: 10, // Reduced from 12
   },
   unreadDot: {
     width: 8,
@@ -326,19 +346,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 6,
   },
   markReadText: {
-    fontSize: 12,
+    fontSize: 10, // Reduced from 12
     fontWeight: '500',
   },
-  testSoundButton: {
-    flexDirection: 'row',
+  settingsButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  testSoundText: {
-    fontSize: 12,
-    fontWeight: '500',
+    justifyContent: 'center',
   },
 });

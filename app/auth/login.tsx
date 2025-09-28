@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ChevronLeft } from 'lucide-react-native';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function Login() {
   const router = useRouter();
@@ -112,9 +113,11 @@ export default function Login() {
               disabled={loading}
               activeOpacity={0.9}
             >
-              <Text style={styles.submitButtonText}>
-                {loading ? 'Signing in…' : 'Sign in'}
-              </Text>
+              {loading ? (
+                <LoadingSpinner size={20} color="#FFFFFF" />
+              ) : (
+                <Text style={styles.submitButtonText}>Sign in</Text>
+              )}
             </TouchableOpacity>
           </Animated.View>
 
@@ -142,13 +145,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
   subtitle: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
   },
   form: {
     flex: 1,
@@ -163,7 +166,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
   },
   fieldLabel: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     fontWeight: '600',
     marginBottom: 8,
   },
@@ -172,7 +175,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
   },
   helperText: {
     fontSize: 12,
@@ -192,7 +195,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   submitButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16, // Reduced from 18
     fontWeight: '700',
     letterSpacing: 0.2,
   },
@@ -201,6 +204,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 8,
   },
   registerLinkText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
   },
 });

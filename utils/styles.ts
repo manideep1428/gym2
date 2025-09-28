@@ -129,7 +129,7 @@ export const createUniversalStyles = (colors: any) => {
     
     buttonText: {
       color: '#FFFFFF',
-      fontSize: 16,
+      fontSize: 14, // Reduced from 16
       fontWeight: Platform.select({
         ios: '600',
         android: '500',
@@ -139,7 +139,7 @@ export const createUniversalStyles = (colors: any) => {
     
     secondaryButtonText: {
       color: colors.text,
-      fontSize: 16,
+      fontSize: 14, // Reduced from 16
       fontWeight: Platform.select({
         ios: '600',
         android: '500',
@@ -163,7 +163,7 @@ export const createUniversalStyles = (colors: any) => {
     },
     
     title: {
-      fontSize: isTablet ? 32 : 28,
+      fontSize: isTablet ? 28 : 24, // Reduced from 32/28
       fontWeight: Platform.select({
         ios: 'bold',
         android: '700',
@@ -174,9 +174,9 @@ export const createUniversalStyles = (colors: any) => {
     },
     
     subtitle: {
-      fontSize: isTablet ? 18 : 16,
+      fontSize: isTablet ? 16 : 14, // Reduced from 18/16
       color: colors.textSecondary,
-      lineHeight: isTablet ? 24 : 22,
+      lineHeight: isTablet ? 22 : 20, // Adjusted line height accordingly
     },
     
     // Section styles
@@ -186,7 +186,7 @@ export const createUniversalStyles = (colors: any) => {
     },
     
     sectionTitle: {
-      fontSize: isTablet ? 22 : 20,
+      fontSize: isTablet ? 18 : 16, // Reduced from 22/20
       fontWeight: Platform.select({
         ios: '600',
         android: '500',
@@ -238,11 +238,11 @@ export const createUniversalStyles = (colors: any) => {
     },
     
     emptyStateText: {
-      fontSize: isTablet ? 18 : 16,
+      fontSize: isTablet ? 16 : 14, // Reduced from 18/16
       color: colors.textSecondary,
       textAlign: 'center',
       marginTop: 16,
-      lineHeight: isTablet ? 26 : 24,
+      lineHeight: isTablet ? 22 : 20, // Adjusted line height
     },
     
     // Form styles
@@ -251,7 +251,7 @@ export const createUniversalStyles = (colors: any) => {
     },
     
     label: {
-      fontSize: 14,
+      fontSize: 12, // Reduced from 14
       fontWeight: Platform.select({
         ios: '500',
         android: '400',
@@ -271,7 +271,7 @@ export const createUniversalStyles = (colors: any) => {
     },
     
     backButtonText: {
-      fontSize: 16,
+      fontSize: 14, // Reduced from 16
       color: colors.primary,
       marginLeft: 4,
       fontWeight: Platform.select({
@@ -366,7 +366,7 @@ export const createUniversalStyles = (colors: any) => {
     },
 
     modalTitle: {
-      fontSize: 20,
+      fontSize: 18, // Reduced from 20
       fontWeight: Platform.select({
         ios: '600',
         android: '500',
@@ -389,7 +389,7 @@ export const createUniversalStyles = (colors: any) => {
     },
 
     modalButtonText: {
-      fontSize: 16,
+      fontSize: 14, // Reduced from 16
       fontWeight: Platform.select({
         ios: '600',
         android: '500',
@@ -418,7 +418,7 @@ export const createUniversalStyles = (colors: any) => {
     },
 
     tabButtonText: {
-      fontSize: 14,
+      fontSize: 12, // Reduced from 14
       fontWeight: Platform.select({
         ios: '500',
         android: '400',
@@ -513,7 +513,7 @@ export const createUniversalStyles = (colors: any) => {
 
     messageText: {
       flex: 1,
-      fontSize: 14,
+      fontSize: 12, // Reduced from 14
       marginLeft: 12,
     },
 
@@ -527,7 +527,7 @@ export const createUniversalStyles = (colors: any) => {
 
     loadingText: {
       marginTop: 16,
-      fontSize: 16,
+      fontSize: 14, // Reduced from 16
       color: colors.textSecondary,
       textAlign: 'center',
     },

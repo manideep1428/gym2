@@ -23,6 +23,14 @@ const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.readonly',
 ];
 
+// AsyncStorage keys for token management
+const STORAGE_KEYS = {
+  ACCESS_TOKEN: 'google_calendar_access_token',
+  REFRESH_TOKEN: 'google_calendar_refresh_token',
+  TOKEN_EXPIRES_AT: 'google_calendar_token_expires_at',
+  IS_CONNECTED: 'google_calendar_connected',
+};
+
 // Initialize Google Sign-In only if available
 if (GoogleSignin) {
   GoogleSignin.configure({
@@ -90,7 +98,7 @@ class GoogleCalendarService {
           token_type: 'Bearer',
         };
         
-        await this.saveTokensToProfile(googleTokens);
+        await this.saveTokensToStorage(googleTokens);
         return googleTokens;
       }
 
@@ -138,27 +146,28 @@ class GoogleCalendarService {
     }
   }
 
-  // Save tokens to user profile
-  private async saveTokensToProfile(tokens: GoogleCalendarTokens): Promise<void> {
+  // Save tokens to AsyncStorage
+  private async saveTokensToStorage(tokens: GoogleCalendarTokens): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No authenticated user');
-
       const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          google_calendar_access_token: tokens.access_token,
-          google_calendar_refresh_token: tokens.refresh_token,
-          google_calendar_token_expires_at: expiresAt.toISOString(),
-          google_calendar_connected: true,
-        })
-        .eq('id', user.id);
+      await Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.access_token),
+        AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refresh_token || ''),
+        AsyncStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRES_AT, expiresAt.toISOString()),
+        AsyncStorage.setItem(STORAGE_KEYS.IS_CONNECTED, 'true'),
+      ]);
 
-      if (error) throw error;
+      // Also update the database connection status for UI purposes
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('profiles')
+          .update({ google_calendar_connected: true })
+          .eq('id', user.id);
+      }
     } catch (error) {
-      console.error('Error saving tokens:', error);
+      console.error('Error saving tokens to storage:', error);
       throw error;
     }
   }
@@ -170,6 +179,20 @@ class GoogleCalendarService {
     }
 
     try {
+      // First check if we have a valid token in storage
+      const storedToken = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      const expiresAt = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRES_AT);
+      
+      if (storedToken && expiresAt) {
+        const expiryDate = new Date(expiresAt);
+        const now = new Date();
+        
+        // If token is still valid (with 5 minute buffer), return it
+        if (expiryDate.getTime() > now.getTime() + 5 * 60 * 1000) {
+          return storedToken;
+        }
+      }
+
       // Check if user is signed in with Google
       const userInfo = await GoogleSignin.getCurrentUser();
       if (!userInfo) return null;
@@ -178,7 +201,7 @@ class GoogleCalendarService {
       const tokens = await GoogleSignin.getTokens();
       
       if (tokens.accessToken) {
-        // Update tokens in database
+        // Update tokens in storage
         const googleTokens: GoogleCalendarTokens = {
           access_token: tokens.accessToken,
           refresh_token: undefined, // Google Sign-In handles refresh automatically
@@ -186,7 +209,7 @@ class GoogleCalendarService {
           token_type: 'Bearer',
         };
         
-        await this.saveTokensToProfile(googleTokens);
+        await this.saveTokensToStorage(googleTokens);
         return tokens.accessToken;
       }
 
@@ -215,7 +238,7 @@ class GoogleCalendarService {
           token_type: 'Bearer',
         };
         
-        await this.saveTokensToProfile(googleTokens);
+        await this.saveTokensToStorage(googleTokens);
         return tokens.accessToken;
       }
       
@@ -305,6 +328,15 @@ class GoogleCalendarService {
   // Check if user is connected to Google Calendar
   async isConnected(): Promise<boolean> {
     try {
+      // First check AsyncStorage for faster response
+      const isConnected = await AsyncStorage.getItem(STORAGE_KEYS.IS_CONNECTED);
+      if (isConnected === 'true') {
+        // Verify we still have a valid token or can get one
+        const token = await this.getValidAccessToken();
+        return token !== null;
+      }
+
+      // Fallback to database check
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
@@ -314,7 +346,14 @@ class GoogleCalendarService {
         .eq('id', user.id)
         .single();
 
-      return profile?.google_calendar_connected || false;
+      const dbConnected = profile?.google_calendar_connected || false;
+      
+      // Sync AsyncStorage with database
+      if (dbConnected) {
+        await AsyncStorage.setItem(STORAGE_KEYS.IS_CONNECTED, 'true');
+      }
+
+      return dbConnected;
     } catch (error) {
       console.error('Error checking connection status:', error);
       return false;
@@ -328,7 +367,7 @@ class GoogleCalendarService {
       if (!user) throw new Error('No authenticated user');
 
       // Revoke Google tokens
-      const accessToken = await this.getValidAccessToken();
+      const accessToken = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       if (accessToken) {
         try {
           await fetch(`https://oauth2.googleapis.com/revoke?token=${accessToken}`, {
@@ -339,13 +378,27 @@ class GoogleCalendarService {
         }
       }
 
-      // Clear tokens from database
+      // Sign out from Google Sign-In
+      if (GoogleSignin) {
+        try {
+          await GoogleSignin.signOut();
+        } catch (error) {
+          console.warn('Failed to sign out from Google:', error);
+        }
+      }
+
+      // Clear tokens from AsyncStorage
+      await Promise.all([
+        AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN),
+        AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN),
+        AsyncStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES_AT),
+        AsyncStorage.removeItem(STORAGE_KEYS.IS_CONNECTED),
+      ]);
+
+      // Clear connection status from database
       const { error } = await supabase
         .from('profiles')
         .update({
-          google_calendar_access_token: null,
-          google_calendar_refresh_token: null,
-          google_calendar_token_expires_at: null,
           google_calendar_connected: false,
         })
         .eq('id', user.id);
@@ -362,6 +415,12 @@ class GoogleCalendarService {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
+
+      // Check if already connected
+      const isConnected = await this.isConnected();
+      if (!isConnected) {
+        throw new Error('Google Calendar not connected. Please connect in settings first.');
+      }
 
       // Get trainer and client info
       const { data: trainer } = await supabase
@@ -384,7 +443,7 @@ class GoogleCalendarService {
 
       const event: CalendarEvent = {
         summary: `Training Session - ${userRole === 'client' ? trainer.name : client.name}`,
-        description: `Training session between ${trainer.name} (Trainer) and ${client.name} (Client)${booking.client_notes ? `\n\nClient Notes: ${booking.client_notes}` : ''}`,
+        description: `Training session between ${trainer.name} (Trainer) and ${client.name} (Client)${booking.client_notes ? `\n\nClient Notes: ${booking.client_notes}` : ''}${booking.trainer_notes ? `\n\nTrainer Notes: ${booking.trainer_notes}` : ''}`,
         start: {
           dateTime: startDateTime.toISOString(),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -422,7 +481,10 @@ class GoogleCalendarService {
         const updateField = userRole === 'client' ? 'calendar_added_by_client' : 'calendar_added_by_trainer';
         await supabase
           .from('bookings')
-          .update({ [updateField]: true })
+          .update({ 
+            [updateField]: true,
+            google_calendar_event_id: eventId 
+          })
           .eq('id', booking.id);
       }
 
@@ -430,6 +492,128 @@ class GoogleCalendarService {
     } catch (error) {
       console.error('Error adding booking to calendar:', error);
       throw error;
+    }
+  }
+
+  // Update booking in calendar when status changes
+  async updateBookingInCalendar(booking: any, userRole: 'client' | 'trainer'): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !booking.google_calendar_event_id) return;
+
+      const isConnected = await this.isConnected();
+      if (!isConnected) return;
+
+      // Get trainer and client info
+      const { data: trainer } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', booking.trainer_id)
+        .single();
+
+      const { data: client } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', booking.client_id)
+        .single();
+
+      if (!trainer || !client) return;
+
+      const startDateTime = new Date(`${booking.date}T${booking.start_time}`);
+      const endDateTime = new Date(`${booking.date}T${booking.end_time}`);
+
+      const statusEmoji = booking.status === 'confirmed' ? '✅' : booking.status === 'cancelled' ? '❌' : '⏳';
+      
+      const updatedEvent: Partial<CalendarEvent> = {
+        summary: `${statusEmoji} Training Session - ${userRole === 'client' ? trainer.name : client.name}`,
+        description: `Training session between ${trainer.name} (Trainer) and ${client.name} (Client)\nStatus: ${booking.status.toUpperCase()}${booking.client_notes ? `\n\nClient Notes: ${booking.client_notes}` : ''}${booking.trainer_notes ? `\n\nTrainer Notes: ${booking.trainer_notes}` : ''}`,
+        start: {
+          dateTime: startDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        end: {
+          dateTime: endDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      };
+
+      await this.updateEvent(booking.google_calendar_event_id, updatedEvent);
+    } catch (error) {
+      console.error('Error updating booking in calendar:', error);
+      // Don't throw error as this is not critical
+    }
+  }
+
+  // Remove booking from calendar when cancelled
+  async removeBookingFromCalendar(booking: any): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !booking.google_calendar_event_id) return;
+
+      const isConnected = await this.isConnected();
+      if (!isConnected) return;
+
+      await this.deleteEvent(booking.google_calendar_event_id);
+
+      // Remove from database
+      await supabase
+        .from('calendar_events')
+        .delete()
+        .eq('booking_id', booking.id)
+        .eq('user_id', user.id);
+
+      // Update booking to mark calendar as removed
+      await supabase
+        .from('bookings')
+        .update({ 
+          google_calendar_event_id: null,
+          calendar_added_by_client: false,
+          calendar_added_by_trainer: false
+        })
+        .eq('id', booking.id);
+    } catch (error) {
+      console.error('Error removing booking from calendar:', error);
+      // Don't throw error as this is not critical
+    }
+  }
+
+  // Check if Google Play Services is available
+  async isGooglePlayServicesAvailable(): Promise<boolean> {
+    if (!GoogleSignin) return false;
+    
+    try {
+      await GoogleSignin.hasPlayServices();
+      return true;
+    } catch (error) {
+      console.warn('Google Play Services not available:', error);
+      return false;
+    }
+  }
+
+  // Get connection status with detailed info
+  async getConnectionStatus(): Promise<{
+    isConnected: boolean;
+    isSignedIn: boolean;
+    hasPlayServices: boolean;
+    error?: string;
+  }> {
+    try {
+      const hasPlayServices = await this.isGooglePlayServicesAvailable();
+      const isSignedIn = await this.isSignedIn();
+      const isConnected = await this.isConnected();
+
+      return {
+        isConnected,
+        isSignedIn,
+        hasPlayServices,
+      };
+    } catch (error: any) {
+      return {
+        isConnected: false,
+        isSignedIn: false,
+        hasPlayServices: false,
+        error: error.message,
+      };
     }
   }
 }

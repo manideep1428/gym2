@@ -21,11 +21,16 @@ import {
 
 export default function ClientTabLayout() {
   const { colors } = useTheme();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, notifications } = useNotifications();
   const deviceInfo = useDeviceInfo();
   const adaptiveStyle = getAdaptiveTabBarStyle(deviceInfo);
   const iconSize = getAdaptiveIconSize(adaptiveStyle.height);
   const fontSize = getAdaptiveFontSize(adaptiveStyle.height);
+
+  // Count payment request notifications for clients
+  const paymentRequestCount = notifications.filter(n => 
+    !n.is_read && n.type === 'payment_request'
+  ).length;
 
   return (
     <Tabs
@@ -75,15 +80,7 @@ export default function ClientTabLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: 'Notifications',
-          tabBarIcon: ({ color }) => (
-            <View style={{ position: 'relative' }}>
-              <Bell color={color} size={iconSize} />
-              {unreadCount > 0 && (
-                <NotificationBadge count={unreadCount} size="small" />
-              )}
-            </View>
-          ),
+          href: null, // Hide from tab bar
         }}
       />
       <Tabs.Screen
@@ -97,7 +94,12 @@ export default function ClientTabLayout() {
         options={{
           href: null,
         }}
-      />
+      />     <Tabs.Screen
+      name="trainer-profile"
+      options={{
+        href: null,
+      }}
+    />
       <Tabs.Screen
         name="packages"
         options={{
@@ -109,7 +111,14 @@ export default function ClientTabLayout() {
         name="payments"
         options={{
           title: 'Payments',
-          tabBarIcon: ({ color }) => <CreditCard color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <CreditCard color={color} size={iconSize} />
+              {paymentRequestCount > 0 && (
+                <NotificationBadge count={paymentRequestCount} size="small" />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
@@ -137,7 +146,14 @@ export default function ClientTabLayout() {
         name="account"
         options={{
           title: 'Account',
-          tabBarIcon: ({ color }) => <User color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <User color={color} size={iconSize} />
+              {unreadCount > 0 && (
+                <NotificationBadge count={unreadCount} size="small" />
+              )}
+            </View>
+          ),
         }}
       />
     </Tabs>

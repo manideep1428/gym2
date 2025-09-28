@@ -46,12 +46,16 @@ export default function GoogleCalendarIntegration({ onConnectionChange }: Google
   const checkConnectionStatus = async () => {
     try {
       setIsChecking(true);
-      const connected = await googleCalendarService.isConnected();
-      const signedIn = await googleCalendarService.isSignedIn();
-      const finalStatus = connected && signedIn;
+      const status = await googleCalendarService.getConnectionStatus();
+      const finalStatus = status.isConnected && status.isSignedIn && status.hasPlayServices;
       
       setIsConnected(finalStatus);
       onConnectionChange?.(finalStatus);
+
+      // Show warning if Google Play Services not available
+      if (!status.hasPlayServices) {
+        console.warn('Google Play Services not available - Calendar integration may not work');
+      }
     } catch (error) {
       console.error('Error checking connection status:', error);
       setIsConnected(false);
@@ -117,16 +121,6 @@ export default function GoogleCalendarIntegration({ onConnectionChange }: Google
     );
   };
 
-  if (isChecking) {
-    return (
-      <View style={[styles.centered]}>
-        <Text style={[styles.checkingText, { color: colors.textSecondary }]}>
-          Checking connection...
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <View>
       <TouchableOpacity
@@ -139,10 +133,18 @@ export default function GoogleCalendarIntegration({ onConnectionChange }: Google
           }
         ]}
         onPress={isConnected ? handleDisconnect : handleConnect}
-        disabled={isLoading}
+        disabled={isLoading || isChecking}
       >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={isConnected ? colors.text : '#FFFFFF'} />
+        {(isLoading || isChecking) ? (
+          <>
+            <ActivityIndicator size="small" color={isConnected ? colors.text : '#FFFFFF'} />
+            <Text style={[
+              styles.actionButtonText,
+              { color: isConnected ? colors.text : '#FFFFFF' }
+            ]}>
+              {isChecking ? 'Checking...' : (isConnected ? 'Disconnecting...' : 'Connecting...')}
+            </Text>
+          </>
         ) : (
           <>
             {isConnected ? (
@@ -164,7 +166,7 @@ export default function GoogleCalendarIntegration({ onConnectionChange }: Google
         <TouchableOpacity
           style={[styles.refreshButton, { borderColor: colors.border }]}
           onPress={checkConnectionStatus}
-          disabled={isLoading}
+          disabled={isLoading || isChecking}
         >
           <RefreshCw color={colors.textSecondary} size={16} />
           <Text style={[styles.refreshButtonText, { color: colors.textSecondary }]}>
@@ -205,7 +207,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 20,
+    fontSize: 16, // Reduced from 20
     fontWeight: '700',
     letterSpacing: 0.5,
   },
@@ -216,15 +218,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     minWidth: 100, // Ensure consistent width
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     fontWeight: '600',
     letterSpacing: 0.25,
     textAlignVertical: 'center',
     includeFontPadding: false,
   },
   description: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 13, // Reduced from 15
+    lineHeight: 20, // Adjusted line height
     marginBottom: 20,
     opacity: 0.8,
   },
@@ -244,7 +246,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     elevation: 2,
   },
   actionButtonText: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     letterSpacing: 0.5,
   },
@@ -260,12 +262,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: 'transparent',
   },
   refreshButtonText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     fontWeight: '500',
     letterSpacing: 0.25,
   },
   checkingText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     marginTop: 10,
     fontWeight: '500',
   },

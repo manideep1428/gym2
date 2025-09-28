@@ -24,19 +24,19 @@ export const NotificationBadge: React.FC<NotificationBadgeProps> = ({
       width: 16,
       height: 16,
       borderRadius: 8,
-      fontSize: 10,
+      fontSize: 8, // Reduced from 10
     },
     medium: {
       width: 20,
       height: 20,
       borderRadius: 10,
-      fontSize: 12,
+      fontSize: 10, // Reduced from 12
     },
     large: {
       width: 24,
       height: 24,
       borderRadius: 12,
-      fontSize: 14,
+      fontSize: 12, // Reduced from 14
     },
   };
 

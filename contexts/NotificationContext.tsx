@@ -36,6 +36,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [realtimeSubscription, setRealtimeSubscription] = useState<any>(null);
+  const [isClearingNotifications, setIsClearingNotifications] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
@@ -64,9 +66,18 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   };
 
   const refreshNotifications = async () => {
-    if (!userProfile) return;
+    if (!userProfile) {
+      console.log('🚫 Skipping notification refresh - no user profile');
+      return;
+    }
+    if (isClearingNotifications) {
+      console.log('🚫 Skipping notification refresh - currently clearing');
+      return;
+    }
 
     try {
+      console.log('🔄 Refreshing notifications for user:', userProfile.id);
+
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
@@ -74,17 +85,28 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error fetching notifications:', error);
+        return;
+      }
 
+      const notificationCount = data?.length || 0;
       setNotifications(data || []);
       setUnreadCount((data || []).filter(n => !n.is_read).length);
+
+      console.log(`✅ Notifications refreshed: ${notificationCount} total, ${((data || []).filter(n => !n.is_read).length)} unread`);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('❌ Error in refreshNotifications:', error);
     }
   };
 
   const setupRealtimeSubscription = () => {
     if (!userProfile) return;
+
+    // Clean up existing subscription if any
+    if (realtimeSubscription) {
+      realtimeSubscription.unsubscribe();
+    }
 
     const subscription = supabase
       .channel('notifications')
@@ -96,11 +118,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           table: 'notifications',
           filter: `user_id=eq.${userProfile.id}`,
         },
-        () => {
-          refreshNotifications();
+        (payload) => {
+          console.log('🔔 Realtime notification change:', payload);
+          // Don't refresh if we're currently clearing notifications
+          if (!isClearingNotifications) {
+            refreshNotifications();
+          } else {
+            console.log('🚫 Skipping refresh - currently clearing notifications');
+          }
         }
       )
       .subscribe();
+
+    // Store the subscription reference for cleanup
+    setRealtimeSubscription(subscription);
 
     return () => {
       subscription.unsubscribe();
@@ -148,21 +179,84 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   };
 
   const clearAllNotifications = async () => {
-    if (notifications.length === 0) return;
+    if (notifications.length === 0) {
+      console.log('🗑️ No notifications to clear');
+      return;
+    }
 
     try {
-      const { error } = await supabase
+      console.log('🗑️ Starting clear all notifications for user:', userProfile?.id);
+      console.log('📊 Current notifications in state:', notifications.length);
+
+      // Set clearing flag immediately
+      setIsClearingNotifications(true);
+
+      // Verify user ID is available
+      if (!userProfile?.id) {
+        console.error('❌ No user profile ID available for clearing notifications');
+        setIsClearingNotifications(false);
+        return;
+      }
+
+      // First, get a count of notifications before deletion
+      const { count: beforeCount, error: countError } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userProfile.id);
+
+      if (countError) {
+        console.error('❌ Error counting notifications before deletion:', countError);
+      } else {
+        console.log('📊 Notifications in database before deletion:', beforeCount);
+      }
+
+      // Perform the deletion
+      const { error, data } = await supabase
         .from('notifications')
         .delete()
-        .eq('user_id', userProfile?.id);
+        .eq('user_id', userProfile.id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Database deletion error:', error);
+        setIsClearingNotifications(false);
+        throw error;
+      }
 
-      // Clear local state
+      console.log('✅ Database deletion successful, deleted items:', data?.length || 0);
+
+      // Verify deletion by counting again
+      const { count: afterCount, error: verifyError } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userProfile.id);
+
+      if (verifyError) {
+        console.error('❌ Error verifying deletion:', verifyError);
+      } else {
+        console.log('🔍 Notifications in database after deletion:', afterCount);
+        if (afterCount && afterCount > 0) {
+          console.warn('⚠️ WARNING: Notifications still exist after deletion!');
+        } else {
+          console.log('✅ Database verification successful - no notifications remaining');
+        }
+      }
+
+      // Clear local state immediately
       setNotifications([]);
       setUnreadCount(0);
+
+      console.log('🎯 Local state cleared successfully');
+
+      // Keep clearing flag for a bit longer to prevent race conditions
+      setTimeout(() => {
+        setIsClearingNotifications(false);
+        console.log('✅ Clearing operation fully completed');
+      }, 2000);
+
     } catch (error) {
-      console.error('Error clearing all notifications:', error);
+      console.error('❌ Error in clearAllNotifications:', error);
+      setIsClearingNotifications(false);
     }
   };
 

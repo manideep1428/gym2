@@ -121,24 +121,30 @@ export default function BookSession() {
     // Fetch existing bookings for this date
     await fetchExistingBookings(selectedDate);
 
-    const availableSlots = [];
+    const availableSlots = new Set<string>();
 
     // For each availability window
     for (const avail of dayAvailability) {
       if (!avail.start_time || !avail.end_time) continue;
 
-      const availStart = new Date(`2000-01-01T${avail.start_time}`);
-      const availEnd = new Date(`2000-01-01T${avail.end_time}`);
+      // Parse time strings properly
+      const [startHour, startMin] = avail.start_time.split(':').map(Number);
+      const [endHour, endMin] = avail.end_time.split(':').map(Number);
+      
+      const availStart = new Date();
+      availStart.setHours(startHour, startMin, 0, 0);
+      
+      const availEnd = new Date();
+      availEnd.setHours(endHour, endMin, 0, 0);
 
       // Check if the selected duration is available for this time slot
-      const allowedDurations = avail.session_durations || [30, 60];
+      const allowedDurations = avail.session_durations || [30, 60, 90, 120];
       if (!allowedDurations.includes(sessionDuration)) continue;
 
       // Generate time slots within this availability window
       let currentTime = new Date(availStart);
 
       while (currentTime < availEnd) {
-        const timeString = currentTime.toTimeString().slice(0, 5);
         const sessionStart = new Date(currentTime);
         const sessionEnd = new Date(sessionStart.getTime() + sessionDuration * 60000);
 
@@ -146,15 +152,24 @@ export default function BookSession() {
         if (sessionEnd <= availEnd) {
           // Check for conflicts with existing bookings
           const hasConflict = existingBookings.some(booking => {
-            const bookingStart = new Date(`2000-01-01T${booking.start_time}`);
-            const bookingEnd = new Date(`2000-01-01T${booking.end_time}`);
+            if (!booking.start_time || !booking.end_time) return false;
+            
+            const [bookStartHour, bookStartMin] = booking.start_time.split(':').map(Number);
+            const [bookEndHour, bookEndMin] = booking.end_time.split(':').map(Number);
+            
+            const bookingStart = new Date();
+            bookingStart.setHours(bookStartHour, bookStartMin, 0, 0);
+            
+            const bookingEnd = new Date();
+            bookingEnd.setHours(bookEndHour, bookEndMin, 0, 0);
 
             // Check if sessions overlap
             return (sessionStart < bookingEnd && sessionEnd > bookingStart);
           });
 
           if (!hasConflict) {
-            availableSlots.push(timeString);
+            const timeString = currentTime.toTimeString().slice(0, 5);
+            availableSlots.add(timeString);
           }
         }
 
@@ -163,7 +178,8 @@ export default function BookSession() {
       }
     }
 
-    return availableSlots;
+    // Convert Set to Array and sort
+    return Array.from(availableSlots).sort();
   };
 
   const generateCalendarDates = () => {
@@ -172,36 +188,25 @@ export default function BookSession() {
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
 
-    // Get first day of current month and next month
-    const firstDayCurrentMonth = new Date(currentYear, currentMonth, 1);
-    const firstDayNextMonth = new Date(currentYear, currentMonth + 1, 1);
+    // Start from tomorrow to avoid booking same day
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() + 1);
 
-    // Generate dates for current month (remaining days)
-    const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    for (let day = today.getDate() + 1; day <= daysInCurrentMonth; day++) {
-      const date = new Date(currentYear, currentMonth, day);
+    // Generate dates for the next 21 days
+    for (let i = 0; i < 21; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      
       dates.push({
         date: date,
         value: date.toISOString().split('T')[0],
-        day: day,
+        day: date.getDate(),
         dayOfWeek: date.getDay(),
-        isCurrentMonth: true,
+        isCurrentMonth: date.getMonth() === currentMonth,
       });
     }
 
-    // Generate dates for next month (first 14 days)
-    for (let day = 1; day <= 14; day++) {
-      const date = new Date(currentYear, currentMonth + 1, day);
-      dates.push({
-        date: date,
-        value: date.toISOString().split('T')[0],
-        day: day,
-        dayOfWeek: date.getDay(),
-        isCurrentMonth: false,
-      });
-    }
-
-    return dates.slice(0, 21); // Show 3 weeks
+    return dates;
   };
 
   const getAvailableDurations = (): number[] => {
@@ -409,9 +414,6 @@ export default function BookSession() {
                     {stepNum}
                   </Text>
                 </View>
-                <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>
-                  {stepNum === 1 ? 'Date' : stepNum === 2 ? 'Duration' : stepNum === 3 ? 'Time' : 'Notes'}
-                </Text>
               </View>
             ))}
           </View>
@@ -651,29 +653,39 @@ export default function BookSession() {
                                     }
                                   ]}
                                   onPress={() => setSelectedTime(time)}
+                                  activeOpacity={0.7}
                                 >
                                   <View style={styles.timeSlotContent}>
                                     <Text style={[
                                       styles.timeSlotTime,
                                       { color: isSelected ? '#FFFFFF' : colors.text }
                                     ]}>
-                                      {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                        hour12: true,
-                                      })}
+                                      {(() => {
+                                        try {
+                                          const [hours, minutes] = time.split(':').map(Number);
+                                          const date = new Date();
+                                          date.setHours(hours, minutes, 0, 0);
+                                          return date.toLocaleTimeString('en-US', {
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                            hour12: true,
+                                          });
+                                        } catch (error) {
+                                          return time;
+                                        }
+                                      })()} 
                                     </Text>
                                     <Text style={[
                                       styles.timeSlotPeriod,
                                       { color: isSelected ? '#FFFFFF' + 'CC' : colors.textSecondary }
                                     ]}>
-                                      {getCurrentDuration()} min session
+                                      {getCurrentDuration()} min
                                     </Text>
                                   </View>
                                   {hasPendingRequests && (
                                     <View style={styles.pendingBadge}>
                                       <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>
-                                        ⚠️ Requested
+                                        ⚠️
                                       </Text>
                                     </View>
                                   )}
@@ -713,29 +725,39 @@ export default function BookSession() {
                                     }
                                   ]}
                                   onPress={() => setSelectedTime(time)}
+                                  activeOpacity={0.7}
                                 >
                                   <View style={styles.timeSlotContent}>
                                     <Text style={[
                                       styles.timeSlotTime,
                                       { color: isSelected ? '#FFFFFF' : colors.text }
                                     ]}>
-                                      {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                        hour12: true,
-                                      })}
+                                      {(() => {
+                                        try {
+                                          const [hours, minutes] = time.split(':').map(Number);
+                                          const date = new Date();
+                                          date.setHours(hours, minutes, 0, 0);
+                                          return date.toLocaleTimeString('en-US', {
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                            hour12: true,
+                                          });
+                                        } catch (error) {
+                                          return time;
+                                        }
+                                      })()} 
                                     </Text>
                                     <Text style={[
                                       styles.timeSlotPeriod,
                                       { color: isSelected ? '#FFFFFF' + 'CC' : colors.textSecondary }
                                     ]}>
-                                      {getCurrentDuration()} min session
+                                      {getCurrentDuration()} min
                                     </Text>
                                   </View>
                                   {hasPendingRequests && (
                                     <View style={styles.pendingBadge}>
                                       <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>
-                                        ⚠️ Requested
+                                        ⚠️
                                       </Text>
                                     </View>
                                   )}
@@ -775,29 +797,39 @@ export default function BookSession() {
                                     }
                                   ]}
                                   onPress={() => setSelectedTime(time)}
+                                  activeOpacity={0.7}
                                 >
                                   <View style={styles.timeSlotContent}>
                                     <Text style={[
                                       styles.timeSlotTime,
                                       { color: isSelected ? '#FFFFFF' : colors.text }
                                     ]}>
-                                      {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                        hour12: true,
-                                      })}
+                                      {(() => {
+                                        try {
+                                          const [hours, minutes] = time.split(':').map(Number);
+                                          const date = new Date();
+                                          date.setHours(hours, minutes, 0, 0);
+                                          return date.toLocaleTimeString('en-US', {
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                            hour12: true,
+                                          });
+                                        } catch (error) {
+                                          return time;
+                                        }
+                                      })()} 
                                     </Text>
                                     <Text style={[
                                       styles.timeSlotPeriod,
                                       { color: isSelected ? '#FFFFFF' + 'CC' : colors.textSecondary }
                                     ]}>
-                                      {getCurrentDuration()} min session
+                                      {getCurrentDuration()} min
                                     </Text>
                                   </View>
                                   {hasPendingRequests && (
                                     <View style={styles.pendingBadge}>
                                       <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>
-                                        ⚠️ Requested
+                                        ⚠️
                                       </Text>
                                     </View>
                                   )}
@@ -946,9 +978,9 @@ export default function BookSession() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 50,
   },
   centered: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -957,27 +989,22 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
+    paddingTop: 60,
     paddingBottom: 20,
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
   },
-  loadingText: {
-    fontSize: 16,
-  },
-  errorText: {
-    fontSize: 16,
-  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
   trainerCard: {
-    borderWidth: 1,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   trainerInfo: {
     flexDirection: 'row',
@@ -999,9 +1026,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   dateScroll: {
     flexDirection: 'row',
@@ -1024,6 +1051,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    justifyContent: 'flex-start',
   },
   timeOption: {
     borderWidth: 1,
@@ -1056,25 +1084,25 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
   },
   notesInput: {
-    borderWidth: 1,
+    backgroundColor: colors.surface,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    minHeight: 100,
+    paddingVertical: 10,
+    fontSize: 14,
+    minHeight: 80,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 40,
+    paddingVertical: 14,
+    borderRadius: 8,
+    marginBottom: 20,
   },
   bookButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   unavailableText: {
@@ -1090,44 +1118,39 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontStyle: 'italic',
   },
   progressContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   progressSteps: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
   },
   progressStep: {
     alignItems: 'center',
-    flex: 1,
   },
   progressDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
   progressDotText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
-  progressLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   calendarContainer: {
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
   },
   calendarHeader: {
     alignItems: 'center',
     marginBottom: 16,
   },
   monthLabel: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   weekDays: {
@@ -1138,7 +1161,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   weekDay: {
     fontSize: 12,
     fontWeight: '500',
-    width: 40,
+    width: 36,
     textAlign: 'center',
   },
   calendarGrid: {
@@ -1147,15 +1170,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-around',
   },
   calendarDate: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   calendarDateText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
   },
   stepHeader: {
@@ -1168,31 +1191,32 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    padding: 8,
   },
   backButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
   },
   selectedDateText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
   durationGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
   },
   durationCard: {
     flex: 1,
     minWidth: '45%',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 12,
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   durationCardText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
   customDurationContainer: {
@@ -1204,24 +1228,24 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8,
   },
   customDurationInput: {
-    borderWidth: 1,
+    backgroundColor: colors.surface,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingVertical: 10,
+    fontSize: 14,
   },
   nextButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 24,
+    paddingVertical: 14,
+    borderRadius: 8,
+    marginTop: 16,
   },
   nextButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   summaryCard: {
@@ -1236,23 +1260,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
   },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  summaryLabel: {
-    fontSize: 14,
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  resetButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
     marginTop: 12,
   },
   resetButtonText: {
@@ -1266,18 +1273,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontStyle: 'italic',
   },
   noSlotsContainer: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 32,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 24,
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   noSlotsText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
   },
   noSlotsSubtext: {
-    fontSize: 14,
+    fontSize: 12,
     textAlign: 'center',
   },
   pendingIndicator: {
@@ -1348,40 +1355,35 @@ const createStyles = (colors: any) => StyleSheet.create({
   timeSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-    paddingHorizontal: 4,
+    gap: 6,
+    marginBottom: 12,
   },
   timeSectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     flex: 1,
   },
   timeSlotCard: {
-    flex: 1,
     minWidth: '30%',
-    maxWidth: '48%',
-    borderRadius: 16,
-    padding: 16,
-    margin: 4,
+    maxWidth: '32%',
+    borderRadius: 8,
+    padding: 12,
+    margin: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    minHeight: 60,
+    position: 'relative',
   },
   timeSlotContent: {
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
   timeSlotTime: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   timeSlotPeriod: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '500',
   },
   pendingBadge: {
@@ -1396,5 +1398,33 @@ const createStyles = (colors: any) => StyleSheet.create({
   pendingBadgeText: {
     fontSize: 10,
     fontWeight: '600',
+  },
+  loadingText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  progressLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  resetButton: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 12,
   },
 });

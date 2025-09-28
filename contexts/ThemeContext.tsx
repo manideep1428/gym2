@@ -22,38 +22,40 @@ export interface ThemeContextType {
   };
 }
 
+// Light Theme (super white)
 const lightTheme = {
   primary: '#22C1C3',
   secondary: '#8B5CF6',
   accent: '#06B6D4',
-  background: '#FFFFFF',
-  surface: '#F8F9FA',
-  text: '#1F2937',
-  textSecondary: '#6B7280',
-  border: '#E5E7EB',
+  background: '#FFFFFF',   // pure white
+  surface: '#FDFDFD',      // almost white
+  text: '#000000',         // pure black text
+  textSecondary: '#555555',
+  border: '#DDDDDD',
   card: '#FFFFFF',
-  error: '#EF4444',
-  success: '#10B981',
-  warning: '#F59E0B',
-  gradientStart: '#667EEA',
-  gradientEnd: '#764BA2',
+  error: '#FF4D4F',
+  success: '#00C851',
+  warning: '#FFBB33',
+  gradientStart: '#FFFFFF',
+  gradientEnd: '#F0F0F0',
 };
 
+// Dark Theme (super black)
 const darkTheme = {
   primary: '#22C1C3',
   secondary: '#A78BFA',
   accent: '#22D3EE',
-  background: '#0F172A',
-  surface: '#1E293B',
-  text: '#F8FAFC',
-  textSecondary: '#CBD5E1',
-  border: '#334155',
-  card: '#1E293B',
-  error: '#EF4444',
-  success: '#10B981',
-  warning: '#F59E0B',
-  gradientStart: '#4F46E5',
-  gradientEnd: '#7C3AED',
+  background: '#000000',   // pure black
+  surface: '#0A0A0A',      // near black
+  text: '#FFFFFF',         // pure white text
+  textSecondary: '#B0B0B0',
+  border: '#222222',
+  card: '#0A0A0A',
+  error: '#FF4D4F',
+  success: '#00C851',
+  warning: '#FFBB33',
+  gradientStart: '#111111',
+  gradientEnd: '#333333',
 };
 
 const ThemeContext = createContext<ThemeContextType>({} as ThemeContextType);
@@ -96,14 +98,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const colors = isDark ? darkTheme : lightTheme;
 
-  const value = {
-    isDark,
-    toggleTheme,
-    colors,
-  };
-
   return (
-    <ThemeContext.Provider value={value}>
+    <ThemeContext.Provider value={{ isDark, toggleTheme, colors }}>
       {children}
     </ThemeContext.Provider>
   );

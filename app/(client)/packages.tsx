@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, TrainingPackage, Profile } from '@/lib/supabase';
-import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton } from '@/components/SkeletonLoader';
-import { Package, User, Calendar, DollarSign, X, Clock } from 'lucide-react-native';
+import { ContentLoadingOverlay, CardSkeleton, ListItemSkeleton, HeaderSkeleton, ClientPackagesSkeleton } from '@/components/SkeletonLoader';
+import { Package, User, Calendar, DollarSign, X, Clock, ChevronRight } from 'lucide-react-native';
 
 export default function ClientPackages() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
   const [packages, setPackages] = useState<(TrainingPackage & { trainer: Profile })[]>([]);
-  const [selectedPackage, setSelectedPackage] = useState<TrainingPackage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedPackage, setSelectedPackage] = useState<(TrainingPackage & { trainer: Profile }) | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const styles = createStyles(colors);
 
@@ -62,69 +63,55 @@ export default function ClientPackages() {
 
       Alert.alert('Success', 'Package purchased successfully!');
       setSelectedPackage(null);
+      setModalVisible(false);
     } catch (error: any) {
       Alert.alert('Error', 'Failed to purchase package');
       console.error('Purchase error:', error);
     }
   };
 
+  const openPackageDetails = (pkg: TrainingPackage & { trainer: Profile }) => {
+    setSelectedPackage(pkg);
+    setModalVisible(true);
+  };
+
+  const closePackageDetails = () => {
+    setSelectedPackage(null);
+    setModalVisible(false);
+  };
+
   const renderPackageCard = ({ item: pkg }: { item: TrainingPackage & { trainer: Profile } }) => (
-    <TouchableOpacity
-      style={[styles.packageCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-      onPress={() => setSelectedPackage(pkg)}
+    <TouchableOpacity 
+      style={[styles.compactPackageCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => openPackageDetails(pkg)}
     >
-      <View style={styles.packageHeader}>
-        <Text style={[styles.packageName, { color: colors.text }]}>{pkg.name}</Text>
-        <Text style={[styles.packagePrice, { color: colors.primary }]}>${pkg.price}</Text>
-      </View>
-
-      <Text style={[styles.packageDescription, { color: colors.textSecondary }]}>{pkg.description}</Text>
-
-      <View style={styles.packageDetails}>
-        <View style={styles.detailRow}>
-          <Calendar color={colors.textSecondary} size={16} />
-          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-            {pkg.session_count} sessions
-          </Text>
+      <View style={styles.compactCardContent}>
+        <View style={styles.compactLeftContent}>
+          <Package color={colors.textSecondary} size={16} />
+          <View style={styles.compactTextContent}>
+            <Text style={[styles.compactPackageName, { color: colors.text }]} numberOfLines={1}>
+              {pkg.name}
+            </Text>
+            <Text style={[styles.compactPackagePrice, { color: colors.primary }]}>
+              ${pkg.price}
+            </Text>
+          </View>
         </View>
-
-        <View style={styles.detailRow}>
-          <User color={colors.textSecondary} size={16} />
-          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-            with {pkg.trainer.name}
-          </Text>
+        
+        <View style={styles.compactRightContent}>
+          <View style={[styles.compactCategoryBadge, { backgroundColor: colors.primary + '20' }]}>
+            <Text style={[styles.compactCategoryText, { color: colors.primary }]} numberOfLines={1}>
+              {pkg.category}
+            </Text>
+          </View>
+          <ChevronRight color={colors.textSecondary} size={16} />
         </View>
-      </View>
-
-      <View style={[styles.categoryBadge, { backgroundColor: colors.primary + '20' }]}>
-        <Text style={[styles.categoryText, { color: colors.primary }]}>{pkg.category}</Text>
       </View>
     </TouchableOpacity>
   );
 
   if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Training Packages</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Choose the perfect package for your goals
-          </Text>
-        </View>
-
-        {/* Loading Skeleton */}
-        <View style={styles.packagesList}>
-          {Array.from({ length: 6 }).map((_, index) => (
-            <CardSkeleton
-              key={index}
-              height={140}
-              hasAvatar={false}
-              lines={4}
-            />
-          ))}
-        </View>
-      </View>
-    );
+    return <ClientPackagesSkeleton />;
   }
 
   return (
@@ -156,14 +143,15 @@ export default function ClientPackages() {
 
       {/* Package Details Modal */}
       <Modal
-        visible={!!selectedPackage}
+        visible={modalVisible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setSelectedPackage(null)}
+        onRequestClose={closePackageDetails}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSelectedPackage(null)}>
+          {/* Modal Header */}
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={closePackageDetails} style={styles.modalCloseButton}>
               <X color={colors.text} size={24} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Package Details</Text>
@@ -171,45 +159,62 @@ export default function ClientPackages() {
           </View>
 
           {selectedPackage && (
-            <View style={styles.modalContent}>
-              <Text style={[styles.modalPackageName, { color: colors.text }]}>{selectedPackage.name}</Text>
-              <Text style={[styles.modalPackagePrice, { color: colors.primary }]}>${selectedPackage.price}</Text>
-              
-              <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
-                {selectedPackage.description}
-              </Text>
-
-              <View style={styles.modalDetails}>
-                <View style={styles.modalDetailRow}>
-                  <Calendar color={colors.textSecondary} size={20} />
-                  <Text style={[styles.modalDetailText, { color: colors.text }]}>
-                    {selectedPackage.session_count} training sessions
-                  </Text>
-                </View>
-
-                <View style={styles.modalDetailRow}>
-                  <Clock color={colors.textSecondary} size={20} />
-                  <Text style={[styles.modalDetailText, { color: colors.text }]}>
-                    Valid for {selectedPackage.duration_days} days
-                  </Text>
-                </View>
-
-                <View style={styles.modalDetailRow}>
-                  <Package color={colors.textSecondary} size={20} />
-                  <Text style={[styles.modalDetailText, { color: colors.text }]}>
-                    {selectedPackage.category}
-                  </Text>
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {/* Package Header */}
+              <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalPackageName, { color: colors.text }]}>{selectedPackage.name}</Text>
+                <Text style={[styles.modalPackagePrice, { color: colors.primary }]}>${selectedPackage.price}</Text>
+                <View style={[styles.categoryBadge, { backgroundColor: colors.primary + '20' }]}>
+                  <Text style={[styles.categoryText, { color: colors.primary }]}>{selectedPackage.category}</Text>
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={[styles.purchaseButton, { backgroundColor: colors.primary }]}
-                onPress={() => purchasePackage(selectedPackage.id)}
-              >
-                <DollarSign color="#FFFFFF" size={20} />
-                <Text style={styles.purchaseButtonText}>Purchase Package</Text>
-              </TouchableOpacity>
-            </View>
+              {/* Package Description */}
+              <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Description</Text>
+                <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+                  {selectedPackage.description}
+                </Text>
+              </View>
+
+              {/* Package Details */}
+              <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Package Details</Text>
+                <View style={styles.modalDetails}>
+                  <View style={styles.modalDetailRow}>
+                    <Calendar color={colors.textSecondary} size={18} />
+                    <Text style={[styles.modalDetailText, { color: colors.text }]}>
+                      {selectedPackage.session_count} training sessions
+                    </Text>
+                  </View>
+
+                  <View style={styles.modalDetailRow}>
+                    <Clock color={colors.textSecondary} size={18} />
+                    <Text style={[styles.modalDetailText, { color: colors.text }]}>
+                      Valid for {selectedPackage.duration_days} days
+                    </Text>
+                  </View>
+
+                  <View style={styles.modalDetailRow}>
+                    <User color={colors.textSecondary} size={18} />
+                    <Text style={[styles.modalDetailText, { color: colors.text }]}>
+                      Trainer: {selectedPackage.trainer.name}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Purchase Button */}
+              <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  style={[styles.purchaseButton, { backgroundColor: colors.primary }]}
+                  onPress={() => purchasePackage(selectedPackage.id)}
+                >
+                  <DollarSign color="#FFFFFF" size={20} />
+                  <Text style={styles.purchaseButtonText}>Purchase Package</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           )}
         </View>
       </Modal>
@@ -231,15 +236,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 14,
   },
   emptyState: {
     flex: 1,
@@ -248,61 +253,127 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
   },
   packagesList: {
     paddingHorizontal: 20,
   },
-  packageCard: {
+  compactPackageCard: {
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  packageHeader: {
+  compactCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    alignItems: 'center',
   },
-  packageName: {
-    fontSize: 18,
-    fontWeight: '600',
+  compactLeftContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     flex: 1,
-    marginRight: 10,
   },
-  packagePrice: {
-    fontSize: 20,
+  compactTextContent: {
+    flex: 1,
+  },
+  compactPackageName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  compactPackagePrice: {
+    fontSize: 16,
     fontWeight: 'bold',
   },
-  packageDescription: {
-    fontSize: 14,
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  packageDetails: {
-    gap: 6,
-    marginBottom: 12,
-  },
-  detailRow: {
+  compactRightContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  detailText: {
+  compactCategoryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  compactCategoryText: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSection: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  modalPackageName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  modalPackagePrice: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  modalDescription: {
     fontSize: 14,
+    lineHeight: 20,
+  },
+  modalDetails: {
+    gap: 12,
+  },
+  modalDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalDetailText: {
+    fontSize: 14,
+    flex: 1,
   },
   categoryBadge: {
     alignSelf: 'flex-start',
@@ -313,52 +384,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   categoryText: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  modalContainer: {
-    flex: 1,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  modalPackageName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  modalPackagePrice: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  modalDescription: {
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  modalDetails: {
-    gap: 16,
-    marginBottom: 32,
-  },
-  modalDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  modalDetailText: {
-    fontSize: 16,
   },
   purchaseButton: {
     flexDirection: 'row',
@@ -371,7 +396,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   purchaseButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
 });

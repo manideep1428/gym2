@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, RefreshControl, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase, Notification } from '@/lib/supabase';
-import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart, Volume2 } from 'lucide-react-native';
-import NotificationService from '@/lib/notificationService';
+import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart } from 'lucide-react-native';
 
 export default function ClientNotifications() {
   const { colors } = useTheme();
@@ -126,27 +125,6 @@ export default function ClientNotifications() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={[styles.testSoundButton, { backgroundColor: colors.primary + '10' }]}
-            onPress={async () => {
-              const notificationService = NotificationService.getInstance();
-              await notificationService.testNotificationSound();
-            }}
-          >
-            <Volume2 color={colors.primary} size={14} />
-            <Text style={[styles.testSoundText, { color: colors.primary }]}>Test Sound</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.testSoundButton, { backgroundColor: colors.warning + '10' }]}
-            onPress={async () => {
-              const notificationService = NotificationService.getInstance();
-              if (userProfile) {
-                await notificationService.debugNotificationSetup(userProfile.id);
-              }
-            }}
-          >
-            <Text style={[styles.testSoundText, { color: colors.warning }]}>Debug Push</Text>
-          </TouchableOpacity>
           {notifications.filter(n => !n.is_read).length > 0 && (
             <TouchableOpacity
               style={styles.markAllButton}
@@ -159,7 +137,23 @@ export default function ClientNotifications() {
           {notifications.length > 0 && (
             <TouchableOpacity
               style={[styles.clearAllButton, { backgroundColor: colors.error + '10', borderColor: colors.error }]}
-              onPress={clearAllNotifications}
+              onPress={() => {
+                Alert.alert(
+                  'Clear All Notifications',
+                  'Are you sure you want to delete all notifications? This action cannot be undone.',
+                  [
+                    {
+                      text: 'Cancel',
+                      style: 'cancel',
+                    },
+                    {
+                      text: 'Clear All',
+                      style: 'destructive',
+                      onPress: clearAllNotifications,
+                    },
+                  ]
+                );
+              }}
             >
               <Text style={[styles.clearAllText, { color: colors.error }]}>Clear All</Text>
             </TouchableOpacity>
@@ -221,7 +215,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24, // Reduced from 28
     fontWeight: 'bold',
   },
   markAllButton: {
@@ -230,7 +224,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 4,
   },
   markAllText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     fontWeight: '500',
   },
   clearAllButton: {
@@ -240,11 +234,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 6,
   },
   clearAllText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     fontWeight: '500',
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
   },
   emptyState: {
     flex: 1,
@@ -253,13 +247,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 16, // Reduced from 20
     fontWeight: '600',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     textAlign: 'center',
   },
   notificationsList: {
@@ -296,20 +290,20 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   notificationTitle: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     marginBottom: 4,
   },
   notificationMessage: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12, // Reduced from 14
+    lineHeight: 18, // Adjusted line height
   },
   notificationMeta: {
     alignItems: 'flex-end',
     gap: 4,
   },
   notificationTime: {
-    fontSize: 12,
+    fontSize: 10, // Reduced from 12
   },
   unreadDot: {
     width: 8,
@@ -327,19 +321,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 6,
   },
   markReadText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  testSoundButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  testSoundText: {
-    fontSize: 12,
+    fontSize: 10, // Reduced from 12
     fontWeight: '500',
   },
 });

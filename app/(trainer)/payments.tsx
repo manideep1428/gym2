@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, PaymentRequest, Profile } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
 import { CreditCard, Plus, DollarSign, User, Calendar, X, Search, Heart, Send, AlertCircle } from 'lucide-react-native';
-import { TrainerPaymentsSkeleton } from '@/components/SkeletonLoader';
+import { CompactPaymentCardSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerPayments() {
   const { colors } = useTheme();
@@ -253,29 +253,33 @@ export default function TrainerPayments() {
     </View>
   );
 
-  if (loading) {
-    return <TrainerPaymentsSkeleton />;
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: colors.text }]}>Payment Requests</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {paymentRequests.filter(p => p.status === 'pending').length} pending requests
+            {loading ? 'Loading...' : `${paymentRequests.filter(p => p.status === 'pending').length} pending requests`}
           </Text>
         </View>
         
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => setShowCreateModal(true)}
+          disabled={loading}
         >
           <Plus color="#FFFFFF" size={20} />
         </TouchableOpacity>
       </View>
 
-      {paymentRequests.length === 0 ? (
+      {loading ? (
+        <View style={styles.paymentsList}>
+          <CompactPaymentCardSkeleton />
+          <CompactPaymentCardSkeleton />
+          <CompactPaymentCardSkeleton />
+          <CompactPaymentCardSkeleton />
+        </View>
+      ) : paymentRequests.length === 0 ? (
         <View style={styles.emptyState}>
           <CreditCard color={colors.textSecondary} size={48} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No payment requests</Text>

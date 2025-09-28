@@ -79,7 +79,7 @@ export const getAdaptiveIconSize = (tabBarHeight: number) => {
 
 // Get adaptive font size for tab labels
 export const getAdaptiveFontSize = (tabBarHeight: number) => {
-  if (tabBarHeight >= 85) return 12; // Large tabs
-  if (tabBarHeight >= 75) return 11; // Medium tabs
-  return 10; // Small tabs
+  if (tabBarHeight >= 85) return 10; // Large tabs - reduced from 12
+  if (tabBarHeight >= 75) return 9; // Medium tabs - reduced from 11
+  return 8; // Small tabs - reduced from 10
 };

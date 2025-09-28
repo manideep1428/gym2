@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Dimensions } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { Text } from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -230,32 +231,73 @@ export const CalendarSkeleton = () => {
   );
 };
 
-// Booking Card Skeleton (More Detailed)
-export const BookingCardSkeleton = () => {
+// Compact Booking Card Skeleton (matches new design)
+export const CompactBookingCardSkeleton = () => {
   const { colors } = useTheme();
-
+  
   return (
-    <View style={[styles.bookingCardSkeleton, { backgroundColor: colors.card }]}>
-      <View style={styles.bookingHeader}>
-        <View style={styles.trainerSection}>
+    <View style={[styles.compactCardSkeleton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.compactCardContentSkeleton}>
+        <View style={styles.compactLeftContentSkeleton}>
           <SkeletonLoader variant="circle" width={16} height={16} />
-          <SkeletonLoader variant="text" width={100} height={14} />
-        </View>
-        <SkeletonLoader variant="rectangle" width={70} height={24} borderRadius={12} />
-      </View>
-
-      <View style={styles.bookingDetails}>
-        {Array.from({ length: 3 }).map((_, index) => (
-          <View key={index} style={styles.detailRow}>
-            <SkeletonLoader variant="circle" width={14} height={14} />
+          <View style={styles.compactTextContentSkeleton}>
+            <SkeletonLoader variant="text" width={100} height={14} />
             <SkeletonLoader variant="text" width={120} height={12} />
           </View>
-        ))}
+        </View>
+        
+        <View style={styles.compactRightContentSkeleton}>
+          <SkeletonLoader variant="rectangle" width={70} height={20} borderRadius={10} />
+          <SkeletonLoader variant="circle" width={16} height={16} />
+        </View>
       </View>
+    </View>
+  );
+};
 
-      <View style={styles.bookingActions}>
-        <SkeletonLoader variant="rectangle" width={140} height={32} borderRadius={16} />
-        <SkeletonLoader variant="rectangle" width={140} height={32} borderRadius={16} />
+// Compact Package Card Skeleton (matches new design)
+export const CompactPackageCardSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.compactCardSkeleton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.compactCardContentSkeleton}>
+        <View style={styles.compactLeftContentSkeleton}>
+          <SkeletonLoader variant="circle" width={16} height={16} />
+          <View style={styles.compactTextContentSkeleton}>
+            <SkeletonLoader variant="text" width={120} height={14} />
+            <SkeletonLoader variant="text" width={60} height={16} />
+          </View>
+        </View>
+        
+        <View style={styles.compactRightContentSkeleton}>
+          <SkeletonLoader variant="rectangle" width={50} height={20} borderRadius={10} />
+          <SkeletonLoader variant="circle" width={16} height={16} />
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// Compact Payment Card Skeleton (matches new design)
+export const CompactPaymentCardSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.compactCardSkeleton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.compactCardContentSkeleton}>
+        <View style={styles.compactLeftContentSkeleton}>
+          <SkeletonLoader variant="circle" width={16} height={16} />
+          <View style={styles.compactTextContentSkeleton}>
+            <SkeletonLoader variant="text" width={100} height={14} />
+            <SkeletonLoader variant="text" width={50} height={16} />
+          </View>
+        </View>
+        
+        <View style={styles.compactRightContentSkeleton}>
+          <SkeletonLoader variant="rectangle" width={80} height={20} borderRadius={10} />
+          <SkeletonLoader variant="circle" width={16} height={16} />
+        </View>
       </View>
     </View>
   );
@@ -591,11 +633,11 @@ export const ClientBookingsSkeleton = () => {
       </View>
 
       <View style={styles.content}>
-        <BookingCardSkeleton />
-        <BookingCardSkeleton />
-        <BookingCardSkeleton />
-        <BookingCardSkeleton />
-        <BookingCardSkeleton />
+        <CompactBookingCardSkeleton />
+        <CompactBookingCardSkeleton />
+        <CompactBookingCardSkeleton />
+        <CompactBookingCardSkeleton />
+        <CompactBookingCardSkeleton />
       </View>
     </View>
   );
@@ -613,10 +655,10 @@ export const TrainerBookingsSkeleton = () => {
       </View>
 
       <View style={styles.content}>
-        <BookingCardSkeleton />
-        <BookingCardSkeleton />
-        <BookingCardSkeleton />
-        <BookingCardSkeleton />
+        <CompactBookingCardSkeleton />
+        <CompactBookingCardSkeleton />
+        <CompactBookingCardSkeleton />
+        <CompactBookingCardSkeleton />
       </View>
     </View>
   );
@@ -662,6 +704,30 @@ export const TrainerClientsSkeleton = () => {
   );
 };
 
+// Client Packages Skeleton
+export const ClientPackagesSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+     <View style={styles.header}>
+           <Text style={[styles.title, { color: colors.text }]}>Training Packages</Text>
+           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+             Choose the perfect package for your goals
+           </Text>
+     </View>
+
+      <View style={styles.content}>
+        <CompactPackageCardSkeleton />
+        <CompactPackageCardSkeleton />
+        <CompactPackageCardSkeleton />
+        <CompactPackageCardSkeleton />
+        <CompactPackageCardSkeleton />
+      </View>
+    </View>
+  );
+};
+
 // Trainer Packages Skeleton
 export const TrainerPackagesSkeleton = () => {
   const { colors } = useTheme();
@@ -669,25 +735,68 @@ export const TrainerPackagesSkeleton = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <SkeletonLoader width={160} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
-        <SkeletonLoader width={200} height={16} borderRadius={4} />
+        <View style={styles.headerContent}>
+          <SkeletonLoader width={140} height={28} borderRadius={4} style={{ marginBottom: 5 }} />
+          <SkeletonLoader width={180} height={16} borderRadius={4} />
+        </View>
+        <SkeletonLoader width={44} height={44} borderRadius={22} />
       </View>
 
       <View style={styles.content}>
-        {Array.from({ length: 3 }).map((_, index) => (
+        {Array.from({ length: 4 }).map((_, index) => (
           <View key={index} style={[styles.packageCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.packageHeader}>
-              <SkeletonLoader width={120} height={18} borderRadius={4} />
-              <SkeletonLoader width={80} height={24} borderRadius={12} />
+              <View style={styles.packageInfo}>
+                <SkeletonLoader width={140} height={18} borderRadius={4} style={{ marginBottom: 6 }} />
+                <SkeletonLoader width={100} height={20} borderRadius={12} />
+              </View>
+              <View style={styles.packageActions}>
+                <SkeletonLoader width={60} height={20} borderRadius={10} />
+                <SkeletonLoader width={16} height={16} borderRadius={8} />
+              </View>
             </View>
-            <SkeletonLoader width="100%" height={14} borderRadius={4} style={{ marginBottom: 8 }} />
-            <SkeletonLoader width="80%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
-            <View style={styles.packageFooter}>
-              <SkeletonLoader width={60} height={20} borderRadius={4} />
-              <SkeletonLoader width={100} height={14} borderRadius={4} />
+            
+            <SkeletonLoader width="90%" height={14} borderRadius={4} style={{ marginBottom: 16 }} />
+            
+            <View style={styles.packageDetails}>
+              <View style={styles.detailRow}>
+                <SkeletonLoader width={16} height={16} borderRadius={8} style={{ marginRight: 8 }} />
+                <SkeletonLoader width={60} height={18} borderRadius={4} />
+              </View>
+              <View style={styles.detailRow}>
+                <SkeletonLoader width={16} height={16} borderRadius={8} style={{ marginRight: 8 }} />
+                <SkeletonLoader width={80} height={14} borderRadius={4} />
+              </View>
+              <View style={styles.detailRow}>
+                <SkeletonLoader width={16} height={16} borderRadius={8} style={{ marginRight: 8 }} />
+                <SkeletonLoader width={100} height={14} borderRadius={4} />
+              </View>
             </View>
           </View>
         ))}
+      </View>
+    </View>
+  );
+};
+
+// Client Payments Skeleton
+export const ClientPaymentsSkeleton = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.header}>
+               <View style={styles.headerContent}>
+                 <Text style={[styles.title, { color: colors.text }]}>Payment Requests</Text>
+               </View>
+             </View>
+
+      <View style={styles.content}>
+        <CompactPaymentCardSkeleton />
+        <CompactPaymentCardSkeleton />
+        <CompactPaymentCardSkeleton />
+        <CompactPaymentCardSkeleton />
+        <CompactPaymentCardSkeleton />
       </View>
     </View>
   );
@@ -1231,6 +1340,37 @@ const styles = StyleSheet.create({
   bookingActions: {
     marginTop: 12,
   },
+  // Compact card skeleton styles
+  compactCardSkeleton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  compactCardContentSkeleton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  compactLeftContentSkeleton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  compactTextContentSkeleton: {
+    flex: 1,
+  },
+  compactRightContentSkeleton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   // New trainer-specific styles
   packageCard: {
     borderWidth: 1,
@@ -1253,6 +1393,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
   paymentCard: {
     borderWidth: 1,
@@ -1303,6 +1448,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  subtitle: {
+    fontSize: 14,
+  },
   notificationHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1334,5 +1482,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  packageInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  packageActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  packageDetails: {
+    gap: 8,
   },
 });

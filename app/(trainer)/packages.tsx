@@ -3,12 +3,14 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, A
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, TrainingPackage } from '@/lib/supabase';
-import { Package, Plus, CreditCard as Edit, Trash2, X, DollarSign, Calendar, Clock } from 'lucide-react-native';
-import { TrainerPackagesSkeleton } from '@/components/SkeletonLoader';
+import { Package, Plus, CreditCard as Edit, Trash2, X, DollarSign, Calendar, Clock, Settings } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { CompactPackageCardSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerPackages() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
+  const router = useRouter();
   const [packages, setPackages] = useState<TrainingPackage[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPackage, setEditingPackage] = useState<TrainingPackage | null>(null);
@@ -188,29 +190,42 @@ export default function TrainerPackages() {
     </View>
   );
 
-  if (loading) {
-    return <TrainerPackagesSkeleton />;
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: colors.text }]}>My Packages</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {packages.filter(p => p.is_active).length} active packages
+            {loading ? 'Loading...' : `${packages.filter(p => p.is_active).length} active packages`}
           </Text>
         </View>
         
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => setShowCreateModal(true)}
-        >
-          <Plus color="#FFFFFF" size={20} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.manageButton, { backgroundColor: colors.surface }]}
+            onPress={() => router.push('/(trainer)/package-management')}
+          >
+            <Settings color={colors.text} size={20} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => setShowCreateModal(true)}
+            disabled={loading}
+          >
+            <Plus color="#FFFFFF" size={20} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {packages.length === 0 ? (
+      {loading ? (
+        <View style={styles.packagesList}>
+          <CompactPackageCardSkeleton />
+          <CompactPackageCardSkeleton />
+          <CompactPackageCardSkeleton />
+          <CompactPackageCardSkeleton />
+        </View>
+      ) : packages.length === 0 ? (
         <View style={styles.emptyState}>
           <Package color={colors.textSecondary} size={48} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No packages created</Text>
@@ -376,6 +391,17 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  manageButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButton: {
     width: 44,

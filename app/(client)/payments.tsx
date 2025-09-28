@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl, Modal, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, PaymentRequest, Profile } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
-import { CreditCard, DollarSign, User, Calendar, CheckCircle, Clock, XCircle } from 'lucide-react-native';
+import { ClientPaymentsSkeleton } from '@/components/SkeletonLoader';
+import { CreditCard, DollarSign, User, Calendar, CheckCircle, Clock, XCircle, X, Info, ChevronRight } from 'lucide-react-native';
 
 export default function ClientPayments() {
   const { colors } = useTheme();
@@ -12,6 +13,8 @@ export default function ClientPayments() {
   const [paymentRequests, setPaymentRequests] = useState<(PaymentRequest & { trainer: Profile })[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<(PaymentRequest & { trainer: Profile }) | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const styles = createStyles(colors);
 
@@ -137,76 +140,48 @@ export default function ClientPayments() {
     }
   };
 
+  const openPaymentDetails = (payment: PaymentRequest & { trainer: Profile }) => {
+    setSelectedPayment(payment);
+    setModalVisible(true);
+  };
+
+  const closePaymentDetails = () => {
+    setSelectedPayment(null);
+    setModalVisible(false);
+  };
+
   const renderPaymentCard = ({ item: payment }: { item: PaymentRequest & { trainer: Profile } }) => (
-    <View style={[styles.paymentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.paymentHeader}>
-        <View style={styles.trainerInfo}>
+    <TouchableOpacity 
+      style={[styles.compactPaymentCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => openPaymentDetails(payment)}
+    >
+      <View style={styles.compactCardContent}>
+        <View style={styles.compactLeftContent}>
           <User color={colors.textSecondary} size={16} />
-          <Text style={[styles.trainerName, { color: colors.text }]}>{payment.trainer.name}</Text>
+          <View style={styles.compactTextContent}>
+            <Text style={[styles.compactTrainerName, { color: colors.text }]} numberOfLines={1}>
+              {payment.trainer.name}
+            </Text>
+            <Text style={[styles.compactPaymentAmount, { color: colors.primary }]}>
+              ${payment.amount}
+            </Text>
+          </View>
         </View>
         
-        <View style={styles.statusContainer}>
-          {getStatusIcon(payment.status)}
-          <Text style={[styles.statusText, { color: getStatusColor(payment.status) }]}>
-            {getStatusText(payment.status)}
-          </Text>
+        <View style={styles.compactRightContent}>
+          <View style={[styles.compactStatusBadge, { backgroundColor: getStatusColor(payment.status) + '20' }]}>
+            <Text style={[styles.compactStatusText, { color: getStatusColor(payment.status) }]}>
+              {getStatusText(payment.status)}
+            </Text>
+          </View>
+          <ChevronRight color={colors.textSecondary} size={16} />
         </View>
       </View>
-
-      <Text style={[styles.paymentAmount, { color: colors.primary }]}>${payment.amount}</Text>
-      <Text style={[styles.paymentDescription, { color: colors.textSecondary }]}>{payment.description}</Text>
-      
-      <View style={styles.paymentDetails}>
-        <View style={styles.dateContainer}>
-          <Calendar color={colors.textSecondary} size={14} />
-          <Text style={[styles.paymentDate, { color: colors.textSecondary }]}>
-            Due: {new Date(payment.due_date).toLocaleDateString()}
-          </Text>
-        </View>
-        
-        {payment.created_at && (
-          <Text style={[styles.createdDate, { color: colors.textSecondary }]}>
-            Requested: {new Date(payment.created_at).toLocaleDateString()}
-          </Text>
-        )}
-      </View>
-
-      {payment.status === 'pending' && (
-        <TouchableOpacity
-          style={[styles.payButton, { backgroundColor: colors.primary }]}
-          onPress={() => markAsPaid(payment.id, payment.trainer_id, payment.trainer.name, payment.amount)}
-        >
-          <DollarSign color="#FFFFFF" size={20} />
-          <Text style={styles.payButtonText}>Mark as Paid</Text>
-        </TouchableOpacity>
-      )}
-
-      {payment.status === 'paid_by_user' && (
-        <View style={[styles.waitingContainer, { backgroundColor: colors.warning + '20' }]}>
-          <Clock color={colors.warning} size={16} />
-          <Text style={[styles.waitingText, { color: colors.warning }]}>
-            Waiting for trainer confirmation
-          </Text>
-        </View>
-      )}
-
-      {payment.status === 'approved' && (
-        <View style={[styles.approvedContainer, { backgroundColor: colors.success + '20' }]}>
-          <CheckCircle color={colors.success} size={16} />
-          <Text style={[styles.approvedText, { color: colors.success }]}>
-            Payment confirmed by trainer
-          </Text>
-        </View>
-      )}
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading payments...</Text>
-      </View>
-    );
+    return <ClientPaymentsSkeleton />;
   }
 
   return (
@@ -244,6 +219,124 @@ export default function ClientPayments() {
           }
         />
       )}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closePaymentDetails}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          {/* Modal Header */}
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={closePaymentDetails} style={styles.modalCloseButton}>
+              <X color={colors.text} size={24} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Payment Details</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          {selectedPayment && (
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {/* Payment Status */}
+              <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.statusHeader}>
+                  <View style={[styles.modalStatusBadge, { backgroundColor: getStatusColor(selectedPayment.status) + '20' }]}>
+                    <Text style={[styles.modalStatusText, { color: getStatusColor(selectedPayment.status) }]}>
+                      {getStatusText(selectedPayment.status)}
+                    </Text>
+                  </View>
+                  {getStatusIcon(selectedPayment.status)}
+                </View>
+              </View>
+
+              {/* Trainer Info */}
+              <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Trainer</Text>
+                <View style={styles.trainerSection}>
+                  <User color={colors.primary} size={20} />
+                  <View style={styles.trainerDetails}>
+                    <Text style={[styles.trainerDetailName, { color: colors.text }]}>{selectedPayment.trainer.name}</Text>
+                    {selectedPayment.trainer.bio && (
+                      <Text style={[styles.trainerDetailBio, { color: colors.textSecondary }]}>
+                        {selectedPayment.trainer.bio}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              {/* Payment Details */}
+              <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Payment Details</Text>
+                
+                <View style={styles.amountSection}>
+                  <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Amount</Text>
+                  <Text style={[styles.amountValue, { color: colors.primary }]}>${selectedPayment.amount}</Text>
+                </View>
+
+                <View style={styles.detailItems}>
+                  <View style={styles.detailItem}>
+                    <Info color={colors.textSecondary} size={18} />
+                    <Text style={[styles.detailItemText, { color: colors.text }]}>
+                      {selectedPayment.description}
+                    </Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Calendar color={colors.textSecondary} size={18} />
+                    <Text style={[styles.detailItemText, { color: colors.text }]}>
+                      Due: {new Date(selectedPayment.due_date).toLocaleDateString()}
+                    </Text>
+                  </View>
+                </View>
+
+                {selectedPayment.created_at && (
+                  <Text style={[styles.createdInfo, { color: colors.textSecondary }]}>
+                    Requested: {new Date(selectedPayment.created_at).toLocaleDateString()}
+                  </Text>
+                )}
+              </View>
+
+              {/* Payment Actions */}
+              {selectedPayment.status === 'pending' && (
+                <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.payButton, { backgroundColor: colors.primary }]}
+                    onPress={() => {
+                      closePaymentDetails();
+                      markAsPaid(selectedPayment.id, selectedPayment.trainer_id, selectedPayment.trainer.name, selectedPayment.amount);
+                    }}
+                  >
+                    <DollarSign color="#FFFFFF" size={20} />
+                    <Text style={styles.payButtonText}>Mark as Paid</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {selectedPayment.status === 'paid_by_user' && (
+                <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={[styles.waitingContainer, { backgroundColor: colors.warning + '20' }]}>
+                    <Clock color={colors.warning} size={18} />
+                    <Text style={[styles.waitingText, { color: colors.warning }]}>
+                      Waiting for trainer confirmation
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {selectedPayment.status === 'approved' && (
+                <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={[styles.approvedContainer, { backgroundColor: colors.success + '20' }]}>
+                    <CheckCircle color={colors.success} size={18} />
+                    <Text style={[styles.approvedText, { color: colors.success }]}>
+                      Payment confirmed by trainer
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -268,15 +361,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 14,
   },
   emptyState: {
     flex: 1,
@@ -285,76 +378,158 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
   },
   paymentsList: {
     paddingHorizontal: 20,
   },
-  paymentCard: {
+  compactPaymentCard: {
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  paymentHeader: {
+  compactCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  trainerInfo: {
+  compactLeftContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  compactTextContent: {
+    flex: 1,
+  },
+  compactTrainerName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  compactPaymentAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  compactRightContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  trainerName: {
-    fontSize: 16,
-    fontWeight: '600',
+  compactStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statusText: {
-    fontSize: 12,
+  compactStatusText: {
+    fontSize: 10,
     fontWeight: '500',
   },
-  paymentAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
-  paymentDescription: {
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  paymentDetails: {
-    marginBottom: 12,
-    gap: 4,
-  },
-  dateContainer: {
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    backgroundColor: 'transparent',
   },
-  paymentDate: {
-    fontSize: 12,
+  modalCloseButton: {
+    padding: 8,
   },
-  createdDate: {
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSection: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalStatusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  modalStatusText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  trainerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  trainerDetails: {
+    flex: 1,
+  },
+  trainerDetailName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  trainerDetailBio: {
+    fontSize: 14,
+  },
+  amountSection: {
+    marginBottom: 16,
+  },
+  amountLabel: {
     fontSize: 12,
+    marginBottom: 4,
+  },
+  amountValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  detailItems: {
+    gap: 12,
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  detailItemText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  createdInfo: {
+    fontSize: 12,
+    marginTop: 8,
   },
   payButton: {
     flexDirection: 'row',
@@ -367,7 +542,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   payButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
   waitingContainer: {
@@ -380,7 +555,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 8,
   },
   waitingText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
   approvedContainer: {
@@ -393,7 +568,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 8,
   },
   approvedText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
 });

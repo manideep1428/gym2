@@ -14,7 +14,7 @@ import {
   Edit,
   Package2
 } from 'lucide-react-native';
-import { TrainerDashboardSkeleton } from '@/components/SkeletonLoader';
+import { TrainerStatCardSkeleton, TrainerBookingCardSkeleton, TrainerActionCardSkeleton } from '@/components/SkeletonLoader';
 
 interface DashboardStats {
   totalBookings: number;
@@ -41,6 +41,10 @@ export default function TrainerDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Individual loading states for each section
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [recentBookingsLoading, setRecentBookingsLoading] = useState(true);
+
   const styles = createStyles(colors);
 
   useEffect(() => {
@@ -63,6 +67,7 @@ export default function TrainerDashboard() {
 
     try {
       // Fetch bookings stats
+      setStatsLoading(true);
       const { data: bookingsData } = await supabase
         .from('bookings')
         .select('*, client:profiles!client_id(name)')
@@ -91,6 +96,7 @@ export default function TrainerDashboard() {
         .eq('status', 'pending');
 
       // Get recent bookings for display
+      setRecentBookingsLoading(true);
       const recentBookings = bookingsData?.slice(0, 5) || [];
 
       setStats({
@@ -106,6 +112,8 @@ export default function TrainerDashboard() {
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
+      setStatsLoading(false);
+      setRecentBookingsLoading(false);
       setLoading(false);
     }
   };
@@ -142,7 +150,45 @@ export default function TrainerDashboard() {
 
   if (loading) {
     return (
-      <TrainerDashboardSkeleton />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.header}>
+          <Text style={[styles.greeting, { color: colors.text }]}>
+            Loading dashboard...
+          </Text>
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Stats Grid Skeleton */}
+          <View style={styles.statsGrid}>
+            <TrainerStatCardSkeleton />
+            <TrainerStatCardSkeleton />
+            <TrainerStatCardSkeleton />
+            <TrainerStatCardSkeleton />
+            <TrainerStatCardSkeleton />
+          </View>
+
+          {/* Recent Bookings Skeleton */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Bookings</Text>
+            <TrainerBookingCardSkeleton />
+            <TrainerBookingCardSkeleton />
+            <TrainerBookingCardSkeleton />
+          </View>
+
+          {/* Quick Actions Skeleton */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
+            <View style={styles.actionsGrid}>
+              <TrainerActionCardSkeleton />
+              <TrainerActionCardSkeleton />
+              <TrainerActionCardSkeleton />
+              <TrainerActionCardSkeleton />
+              <TrainerActionCardSkeleton />
+              <TrainerActionCardSkeleton />
+            </View>
+          </View>
+        </ScrollView>
+      </View>
     );
   }
 
@@ -169,49 +215,67 @@ export default function TrainerDashboard() {
       >
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
-          <StatCard
-            icon={<Calendar color={colors.primary} size={24} />}
-            title="Today's Sessions"
-            value={stats.todayBookings}
-            color={colors.primary}
-            onPress={() => router.push('/(trainer)/bookings')}
-          />
-          <StatCard
-            icon={<Users color={colors.success} size={24} />}
-            title="Total Clients"
-            value={stats.totalClients}
-            color={colors.success}
-            onPress={() => router.push('/(trainer)/clients')}
-          />
-          <StatCard
-            icon={<TrendingUp color={colors.warning} size={24} />}
-            title="Total Bookings"
-            value={stats.totalBookings}
-            color={colors.warning}
-            onPress={() => router.push('/(trainer)/bookings')}
-          />
-          <StatCard
-            icon={<DollarSign color={colors.error} size={24} />}
-            title="Pending Payments"
-            value={stats.pendingPayments}
-            subtitle={`$${stats.monthlyRevenue}`}
-            color={colors.error}
-            onPress={() => router.push('/(trainer)/payments')}
-          />
-          <StatCard
-            icon={<UserPlus color="#8B5CF6" size={24} />}
-            title="Client Requests"
-            value={stats.pendingClientRequests}
-            color="#8B5CF6"
-            onPress={() => router.push('/(trainer)/client-requests')}
-          />
+          {statsLoading ? (
+            <>
+              <TrainerStatCardSkeleton />
+              <TrainerStatCardSkeleton />
+              <TrainerStatCardSkeleton />
+              <TrainerStatCardSkeleton />
+              <TrainerStatCardSkeleton />
+            </>
+          ) : (
+            <>
+              <StatCard
+                icon={<Calendar color={colors.primary} size={24} />}
+                title="Today's Sessions"
+                value={stats.todayBookings}
+                color={colors.primary}
+                onPress={() => router.push('/(trainer)/bookings')}
+              />
+              <StatCard
+                icon={<Users color={colors.success} size={24} />}
+                title="Total Clients"
+                value={stats.totalClients}
+                color={colors.success}
+                onPress={() => router.push('/(trainer)/clients')}
+              />
+              <StatCard
+                icon={<TrendingUp color={colors.warning} size={24} />}
+                title="Total Bookings"
+                value={stats.totalBookings}
+                color={colors.warning}
+                onPress={() => router.push('/(trainer)/bookings')}
+              />
+              <StatCard
+                icon={<DollarSign color={colors.error} size={24} />}
+                title="Pending Payments"
+                value={stats.pendingPayments}
+                subtitle={`$${stats.monthlyRevenue}`}
+                color={colors.error}
+                onPress={() => router.push('/(trainer)/payments')}
+              />
+              <StatCard
+                icon={<UserPlus color="#8B5CF6" size={24} />}
+                title="Client Requests"
+                value={stats.pendingClientRequests}
+                color="#8B5CF6"
+                onPress={() => router.push('/(trainer)/my-requests')}
+              />
+            </>
+          )}
         </View>
 
         {/* Recent Bookings */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Bookings</Text>
 
-          {recentBookings.length === 0 ? (
+          {recentBookingsLoading ? (
+            <>
+              <TrainerBookingCardSkeleton />
+              <TrainerBookingCardSkeleton />
+              <TrainerBookingCardSkeleton />
+            </>
+          ) : recentBookings.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Calendar color={colors.textSecondary} size={32} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No recent bookings</Text>
@@ -263,6 +327,14 @@ export default function TrainerDashboard() {
 
             <TouchableOpacity 
               style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/(trainer)/bookings')}
+            >
+              <Calendar color={colors.primary} size={24} />
+              <Text style={[styles.actionText, { color: colors.text }]}>Bookings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => router.push('/(trainer)/payments')}
             >
               <DollarSign color={colors.primary} size={24} />
@@ -270,16 +342,8 @@ export default function TrainerDashboard() {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push('/(trainer)/clients')}
-            >
-              <Users color={colors.primary} size={24} />
-              <Text style={[styles.actionText, { color: colors.text }]}>View Clients</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
               style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
-              onPress={() => router.push('/(trainer)/client-requests')}
+              onPress={() => router.push('/(trainer)/my-requests')}
             >
               <UserPlus color={colors.primary} size={24} />
               <Text style={[styles.actionText, { color: colors.text }]}>Client Requests</Text>
@@ -323,15 +387,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 20,
   },
   greeting: {
-    fontSize: 28,
+    fontSize: 24, // Reduced from 28
     fontWeight: 'bold',
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
   },
   content: {
     flex: 1,
@@ -365,17 +429,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 12,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 20, // Reduced from 24
     fontWeight: 'bold',
     marginBottom: 4,
   },
   statTitle: {
-    fontSize: 12,
+    fontSize: 10, // Reduced from 12
     fontWeight: '500',
     textAlign: 'center',
   },
   statSubtitle: {
-    fontSize: 10,
+    fontSize: 8, // Reduced from 10
     textAlign: 'center',
     marginTop: 2,
   },
@@ -383,7 +447,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16, // Reduced from 18
     fontWeight: '600',
     marginBottom: 16,
   },
@@ -395,7 +459,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
   },
   bookingCard: {
     flexDirection: 'row',
@@ -410,12 +474,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   clientName: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     marginBottom: 4,
   },
   bookingDate: {
-    fontSize: 12,
+    fontSize: 10, // Reduced from 12
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -442,7 +506,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   actionText: {
-    fontSize: 12,
+    fontSize: 10, // Reduced from 12
     fontWeight: '500',
     textAlign: 'center',
   },

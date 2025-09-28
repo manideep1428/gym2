@@ -522,12 +522,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   greeting: {
-    fontSize: 28,
+    fontSize: 24, // Reduced from 28
     fontWeight: 'bold',
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
   },
   content: {
     flex: 1,
@@ -556,13 +556,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: 24,
+    fontSize: 20, // Reduced from 24
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
   },
   cardSubtitle: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     color: '#FFFFFF',
     opacity: 0.9,
   },
@@ -582,7 +582,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16, // Reduced from 18
     fontWeight: '600',
     marginBottom: 16,
   },
@@ -615,12 +615,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 12,
   },
   sessionTrainer: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     marginBottom: 4,
   },
   sessionDetails: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
   },
   packageCard: {
     borderWidth: 1,
@@ -629,12 +629,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 12,
   },
   packageName: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     marginBottom: 4,
   },
   packageDetails: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
   },
   sessionsBadge: {
     paddingHorizontal: 12,
@@ -652,16 +652,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 12,
   },
   paymentTrainer: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     marginBottom: 4,
   },
   paymentDetails: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     marginBottom: 4,
   },
   paymentAmount: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
   },
   trainerCard: {
@@ -677,16 +677,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
   },
   trainerInitial: {
-    fontSize: 18,
+    fontSize: 16, // Reduced from 18
     fontWeight: '600',
   },
   trainerName: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
     marginBottom: 4,
   },
   trainerBio: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     marginBottom: 4,
   },
   trainerRating: {
@@ -708,7 +708,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 8,
   },
   viewAllText: {
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16
     fontWeight: '500',
   },
 });

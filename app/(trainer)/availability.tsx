@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { supabase, TrainerAvailability } from '@/lib/supabase';
 import { ChevronLeft, Clock, Plus, X, Trash2, ChevronRight, Sunrise, Sun, Sunset } from 'lucide-react-native';
-import { SkeletonLoader, TrainerScheduleSkeleton } from '@/components/SkeletonLoader';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 
 export default function TrainerAvailabilityScreen() {
   const { colors } = useTheme();
@@ -723,9 +723,15 @@ export default function TrainerAvailabilityScreen() {
     },
   });
 
-  if (loading) {
-    return <TrainerScheduleSkeleton />;
-  }
+  const AvailabilitySlotSkeleton = () => (
+    <View style={[styles.timeSlot, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={styles.timeInfo}>
+        <SkeletonLoader variant="circle" width={16} height={16} style={{ marginRight: 8 }} />
+        <SkeletonLoader variant="text" width={100} height={14} />
+      </View>
+      <SkeletonLoader variant="circle" width={20} height={20} />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -875,12 +881,18 @@ export default function TrainerAvailabilityScreen() {
                       setSelectedDay(index);
                       setShowAddModal(true);
                     }}
+                    disabled={loading}
                   >
                     <Plus color="#FFFFFF" size={16} />
                   </TouchableOpacity>
                 </View>
 
-                {groupedAvailability[index] ? (
+                {loading ? (
+                  <View>
+                    <AvailabilitySlotSkeleton />
+                    {Math.random() > 0.5 && <AvailabilitySlotSkeleton />}
+                  </View>
+                ) : groupedAvailability[index] ? (
                   groupedAvailability[index].map((slot) => (
                     <View key={slot.id} style={styles.timeSlot}>
                       <View style={styles.timeInfo}>

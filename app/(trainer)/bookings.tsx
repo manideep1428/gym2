@@ -6,7 +6,7 @@ import { supabase, Booking, Profile } from '@/lib/supabase';
 import { googleCalendarService } from '@/lib/googleCalendar';
 import NotificationService from '@/lib/notificationService';
 import { Calendar, User, Clock, CircleCheck as CheckCircle, Circle as XCircle, CalendarPlus } from 'lucide-react-native';
-import { TrainerBookingsSkeleton } from '@/components/SkeletonLoader';
+import { CompactBookingCardSkeleton } from '@/components/SkeletonLoader';
 
 export default function TrainerBookings() {
   const { colors } = useTheme();
@@ -326,7 +326,24 @@ export default function TrainerBookings() {
   );
 
   if (loading) {
-    return <TrainerBookingsSkeleton />;
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}> 
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Bookings</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Loading sessions...
+          </Text>
+        </View>
+
+        <FlatList
+          data={Array.from({ length: 5 })}
+          renderItem={() => <CompactBookingCardSkeleton />}
+          keyExtractor={(_, index) => `skeleton-${index}`}
+          contentContainerStyle={styles.bookingsList}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    );
   }
 
   return (

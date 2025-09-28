@@ -2,38 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase, Profile, Booking } from '@/lib/supabase';
-import { Users, User, Calendar, TrendingUp, X, UserPlus, Trash2, AlertTriangle } from 'lucide-react-native';
-import { NotificationBadge } from '@/components/NotificationBadge';
-import { TrainerClientsSkeleton } from '@/components/SkeletonLoader';
+import { Users, User, Calendar, TrendingUp, X, Trash2, AlertTriangle, ArrowRight, Plus } from 'lucide-react-native';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { useRouter } from 'expo-router';
-import NotificationService from '@/lib/notificationService';
 
 export default function TrainerClients() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
-  const { notifications } = useNotifications();
   const router = useRouter();
   const [clients, setClients] = useState<Profile[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<Profile | null>(null);
   const [clientBookings, setClientBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'clients' | 'requests'>('clients');
+  const [clientsLoading, setClientsLoading] = useState(true);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [clientToRemove, setClientToRemove] = useState<any>(null);
   const [removeTimer, setRemoveTimer] = useState(5);
   const [canRemove, setCanRemove] = useState(false);
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+  const [expandedRemoveTimer, setExpandedRemoveTimer] = useState(5);
+  const [expandedCanRemove, setExpandedCanRemove] = useState(false);
 
-  // Count pending connection requests
-  const pendingRequestsCount = pendingRequests.length;
 
   const styles = createStyles(colors);
 
   useEffect(() => {
     fetchClients();
-    fetchPendingRequests();
   }, []);
 
   useEffect(() => {
@@ -45,6 +39,7 @@ export default function TrainerClients() {
   const fetchClients = async () => {
     if (!userProfile) return;
 
+    setClientsLoading(true);
     try {
       // Get connected clients from relationships
       const { data: relationshipsData, error: relationshipsError } = await supabase
@@ -63,30 +58,10 @@ export default function TrainerClients() {
     } catch (error) {
       console.error('Error fetching clients:', error);
     } finally {
-      setLoading(false);
+      setClientsLoading(false);
     }
   };
 
-  const fetchPendingRequests = async () => {
-    if (!userProfile) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('client_trainer_relationships')
-        .select(`
-          *,
-          client:profiles!client_trainer_relationships_client_id_fkey(*)
-        `)
-        .eq('trainer_id', userProfile.id)
-        .eq('status', 'pending')
-        .order('requested_at', { ascending: false });
-
-      if (error) throw error;
-      setPendingRequests(data || []);
-    } catch (error) {
-      console.error('Error fetching pending requests:', error);
-    }
-  };
 
   const fetchClientBookings = async (clientId: string) => {
     if (!userProfile) return;
@@ -106,49 +81,6 @@ export default function TrainerClients() {
     }
   };
 
-  const handleRequestResponse = async (requestId: string, status: 'approved' | 'rejected', message: string = '') => {
-    try {
-      const updateData: any = {
-        status,
-        trainer_response: message,
-      };
-
-      if (status === 'approved') {
-        updateData.approved_at = new Date().toISOString();
-      } else {
-        updateData.rejected_at = new Date().toISOString();
-      }
-
-      const { error } = await supabase
-        .from('client_trainer_relationships')
-        .update(updateData)
-        .eq('id', requestId);
-
-      if (error) throw error;
-
-      // Send notification to client
-      const request = pendingRequests.find(r => r.id === requestId);
-      if (request && userProfile) {
-        const notificationService = NotificationService.getInstance();
-        await notificationService.notifyConnectionResponse(
-          request.client_id,
-          userProfile.name,
-          status,
-          requestId,
-          message
-        );
-      }
-
-      // Refresh data
-      await fetchClients();
-      await fetchPendingRequests();
-      
-      Alert.alert('Success', `Client request ${status} successfully!`);
-    } catch (error) {
-      console.error('Error updating request:', error);
-      Alert.alert('Error', 'Failed to update request. Please try again.');
-    }
-  };
 
   const showRemoveConfirmation = (client: any, isRequest: boolean = false) => {
     setClientToRemove({ ...client, isRequest });
@@ -169,6 +101,53 @@ export default function TrainerClients() {
     }, 1000);
   };
 
+  const toggleRemoveExpansion = (clientId: string) => {
+    if (expandedClientId === clientId) {
+      setExpandedClientId(null);
+      setExpandedCanRemove(false);
+      setExpandedRemoveTimer(5);
+    } else {
+      setExpandedClientId(clientId);
+      setExpandedRemoveTimer(5);
+      setExpandedCanRemove(false);
+      
+      // Start countdown for expanded remove
+      const interval = setInterval(() => {
+        setExpandedRemoveTimer(prev => {
+          if (prev <= 1) {
+            setExpandedCanRemove(true);
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  };
+
+  const removeClientExpanded = async (client: Profile) => {
+    if (!expandedCanRemove) return;
+
+    try {
+      const { error } = await supabase
+        .from('client_trainer_relationships')
+        .update({ status: 'terminated', terminated_at: new Date().toISOString() })
+        .eq('client_id', client.id)
+        .eq('trainer_id', userProfile?.id);
+
+      if (error) throw error;
+
+      // Refresh data
+      await fetchClients();
+      
+      setExpandedClientId(null);
+      Alert.alert('Success', 'Client relationship terminated successfully.');
+    } catch (error) {
+      console.error('Error removing client:', error);
+      Alert.alert('Error', 'Failed to remove client. Please try again.');
+    }
+  };
+
   const removeClient = async () => {
     if (!clientToRemove || !canRemove) return;
 
@@ -183,7 +162,6 @@ export default function TrainerClients() {
 
       // Refresh data
       await fetchClients();
-      await fetchPendingRequests();
       
       setShowRemoveModal(false);
       setClientToRemove(null);
@@ -194,162 +172,164 @@ export default function TrainerClients() {
     }
   };
 
-  const renderClientCard = ({ item: client }: { item: Profile }) => (
-    <View style={[styles.clientCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <TouchableOpacity
-        style={styles.clientContent}
-        onPress={() => setSelectedClient(client)}
-      >
-        <View style={[styles.clientAvatar, { backgroundColor: colors.primary }]}>
-          <User color="#FFFFFF" size={20} />
+  const renderClientCard = ({ item: client }: { item: Profile }) => {
+    const isExpanded = expandedClientId === client.id;
+    
+    return (
+      <View style={[styles.clientCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Main Client Info Row */}
+        <View style={styles.clientMainRow}>
+          <TouchableOpacity
+            style={styles.clientContent}
+            onPress={() => setSelectedClient(client)}
+          >
+            <View style={[styles.clientAvatar, { backgroundColor: colors.primary }]}>
+              <User color="#FFFFFF" size={24} />
+            </View>
+            
+            <View style={styles.clientInfo}>
+              <View style={styles.clientNameRow}>
+                <Text style={[styles.clientName, { color: colors.text }]}>
+                  {client.name}
+                </Text>
+                <View style={[styles.statusBadge, { backgroundColor: colors.success + '20' }]}>
+                  <Text style={[styles.statusText, { color: colors.success }]}>Active</Text>
+                </View>
+              </View>
+              
+              <Text style={[styles.clientEmail, { color: colors.textSecondary }]}>
+                {client.email}
+              </Text>
+              
+              {client.phone && (
+                <Text style={[styles.clientPhone, { color: colors.textSecondary }]}>
+                  {client.phone}
+                </Text>
+              )}
+              
+              <View style={styles.clientMetrics}>
+                <View style={styles.metricItem}>
+                  <Calendar color={colors.primary} size={14} />
+                  <Text style={[styles.metricText, { color: colors.textSecondary }]}>Sessions: 0</Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <TrendingUp color={colors.primary} size={14} />
+                  <Text style={[styles.metricText, { color: colors.textSecondary }]}>Progress: Good</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.clientActions}>
+              <View style={styles.actionIcon}>
+                <ArrowRight color={colors.textSecondary} size={16} />
+              </View>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.expandRemoveButton, { backgroundColor: isExpanded ? colors.error + '20' : colors.surface }]}
+            onPress={() => toggleRemoveExpansion(client.id)}
+          >
+            <Trash2 color={isExpanded ? colors.error : colors.textSecondary} size={18} />
+          </TouchableOpacity>
         </View>
         
-        <View style={styles.clientInfo}>
-          <Text style={[styles.clientName, { color: colors.text }]}>
-            {client.name}
-          </Text>
-          <Text style={[styles.clientEmail, { color: colors.textSecondary }]}>
-            {client.email}
-          </Text>
-        </View>
-
-        <View style={styles.clientStats}>
-          <Text style={[styles.statsText, { color: colors.textSecondary }]}>
-            View Details
-          </Text>
-        </View>
-      </TouchableOpacity>
-      
-      <TouchableOpacity
-        style={[styles.removeButton, { backgroundColor: colors.error + '10' }]}
-        onPress={() => showRemoveConfirmation(client)}
-      >
-        <Trash2 color={colors.error} size={16} />
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderRequestCard = ({ item: request }: { item: any }) => (
-    <View style={[styles.requestCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.requestHeader}>
-        <View style={[styles.clientAvatar, { backgroundColor: colors.primary }]}>
-          <User color="#FFFFFF" size={20} />
-        </View>
-        
-        <View style={styles.requestInfo}>
-          <Text style={[styles.clientName, { color: colors.text }]}>
-            {request.client?.name || 'Unknown Client'}
-          </Text>
-          <Text style={[styles.requestDate, { color: colors.textSecondary }]}>
-            {new Date(request.requested_at).toLocaleDateString()}
-          </Text>
-        </View>
+        {isExpanded && (
+          <View style={[styles.removeExpansion, { backgroundColor: colors.error + '05', borderColor: colors.error + '20' }]}>
+            <View style={styles.removeWarning}>
+              <AlertTriangle color={colors.error} size={20} />
+              <Text style={[styles.removeWarningText, { color: colors.text }]}>
+                Remove {client.name}?
+              </Text>
+            </View>
+            
+            <Text style={[styles.removeDescription, { color: colors.textSecondary }]}>
+              This will terminate your relationship and cannot be undone.
+            </Text>
+            
+            <View style={styles.removeActions}>
+              <TouchableOpacity
+                style={[styles.cancelRemoveButton, { backgroundColor: colors.surface }]}
+                onPress={() => setExpandedClientId(null)}
+              >
+                <Text style={[styles.cancelRemoveText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.confirmExpandedRemoveButton,
+                  { 
+                    backgroundColor: expandedCanRemove ? colors.error : colors.error + '50',
+                    opacity: expandedCanRemove ? 1 : 0.6
+                  }
+                ]}
+                onPress={() => removeClientExpanded(client)}
+                disabled={!expandedCanRemove}
+              >
+                <Text style={styles.confirmExpandedRemoveText}>
+                  {expandedCanRemove ? 'Remove' : `Wait ${expandedRemoveTimer}s`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
+    );
+  };
 
-      {request.client_message && (
-        <Text style={[styles.requestMessage, { color: colors.textSecondary }]}>
-          "{request.client_message}"
-        </Text>
-      )}
-
-      <View style={styles.requestActions}>
-        <TouchableOpacity
-          style={[styles.approveButton, { backgroundColor: colors.success }]}
-          onPress={() => handleRequestResponse(request.id, 'approved')}
-        >
-          <Text style={styles.actionButtonText}>Approve</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.rejectButton, { backgroundColor: colors.error }]}
-          onPress={() => handleRequestResponse(request.id, 'rejected')}
-        >
-          <Text style={styles.actionButtonText}>Reject</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  if (loading) {
-    return <TrainerClientsSkeleton />;
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Clients & Requests</Text>
+        <View style={styles.headerContent}>
+          <Text style={[styles.title, { color: colors.text }]}>Clients</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.searchButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/(trainer)/client-search')}
+        >
+          <Plus color="#FFFFFF" size={20} />
+        </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            { borderBottomColor: activeTab === 'clients' ? colors.primary : 'transparent' }
-          ]}
-          onPress={() => setActiveTab('clients')}
-        >
-          <Text style={[
-            styles.tabText,
-            { color: activeTab === 'clients' ? colors.primary : colors.textSecondary }
-          ]}>
-            Current Clients ({clients.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            { borderBottomColor: activeTab === 'requests' ? colors.primary : 'transparent' }
-          ]}
-          onPress={() => setActiveTab('requests')}
-        >
-          <Text style={[
-            styles.tabText,
-            { color: activeTab === 'requests' ? colors.primary : colors.textSecondary }
-          ]}>
-            Requests ({pendingRequestsCount})
-          </Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Content */}
-      {activeTab === 'clients' ? (
-        clients.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Users color={colors.textSecondary} size={48} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No clients yet</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              Approved client relationships will appear here
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={clients}
-            renderItem={renderClientCard}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.clientsList}
-            showsVerticalScrollIndicator={false}
-          />
-        )
+      {clientsLoading ? (
+        <View style={styles.clientsList}>
+          {Array.from({ length: 3 }).map((_, index) => (
+            <View key={`client-skeleton-${index}`} style={[styles.clientCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.clientAvatar, { backgroundColor: colors.primary }]}>
+                {/* Skeleton avatar */}
+              </View>
+              <View style={styles.clientInfo}>
+                <SkeletonLoader width={120} height={16} borderRadius={4} style={{ marginBottom: 4 }} />
+                <SkeletonLoader width={180} height={14} borderRadius={4} />
+              </View>
+              <View style={styles.clientStats}>
+                <SkeletonLoader width={80} height={12} borderRadius={4} />
+              </View>
+              <View style={[styles.expandRemoveButton, { backgroundColor: colors.error + '10' }]}>
+                {/* Skeleton remove button */}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : clients.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Users color={colors.textSecondary} size={48} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No clients yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+            Use the + button to search and add clients
+          </Text>
+        </View>
       ) : (
-        pendingRequests.length === 0 ? (
-          <View style={styles.emptyState}>
-            <UserPlus color={colors.textSecondary} size={48} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No pending requests</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              Client connection requests will appear here
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={pendingRequests}
-            renderItem={renderRequestCard}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.clientsList}
-            showsVerticalScrollIndicator={false}
-          />
-        )
+        <FlatList
+          data={clients}
+          renderItem={renderClientCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.clientsList}
+          showsVerticalScrollIndicator={false}
+        />
       )}
 
       {/* Client Details Modal */}
@@ -493,28 +473,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  tabContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     marginBottom: 20,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    borderBottomWidth: 2,
-    alignItems: 'center',
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
   headerContent: {
     flex: 1,
   },
-  requestsButton: {
+  searchButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -552,91 +520,158 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   clientCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  clientMainRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   clientContent: {
     flex: 1,
     flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  clientNameRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
-  clientStats: {
-    alignItems: 'flex-end',
+  clientMetrics: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 16,
   },
-  statsText: {
+  metricItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metricText: {
     fontSize: 12,
     fontWeight: '500',
   },
-  removeButton: {
+  clientActions: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 12,
+  },
+  actionIcon: {
     padding: 8,
-    borderRadius: 8,
-    marginLeft: 12,
   },
-  requestCard: {
-    borderWidth: 1,
+  expandRemoveButton: {
+    padding: 12,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    marginLeft: 16,
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  requestHeader: {
+  removeExpansion: {
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginHorizontal: -4,
+  },
+  removeWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+    gap: 8,
   },
-  requestInfo: {
-    flex: 1,
-    marginLeft: 12,
+  removeWarningText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
-  requestDate: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  requestMessage: {
+  removeDescription: {
     fontSize: 14,
-    fontStyle: 'italic',
     marginBottom: 16,
-    paddingLeft: 12,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.border,
+    lineHeight: 20,
   },
-  requestActions: {
+  removeActions: {
     flexDirection: 'row',
     gap: 12,
   },
-  approveButton: {
+  cancelRemoveButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
-  rejectButton: {
+  cancelRemoveText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  confirmExpandedRemoveButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  confirmExpandedRemoveText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   clientAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   clientInfo: {
     flex: 1,
   },
+  clientStats: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
   clientName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     marginBottom: 2,
   },
   clientEmail: {
     fontSize: 14,
+    marginBottom: 2,
+  },
+  clientPhone: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   modalContainer: {
     flex: 1,
@@ -715,15 +750,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   bookingTime: {
     fontSize: 12,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -737,8 +763,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   actionButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
