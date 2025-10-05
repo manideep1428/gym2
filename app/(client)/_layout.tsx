@@ -7,6 +7,7 @@ import {
   User,
   Bell,
   CreditCard,
+  Users,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -75,6 +76,13 @@ export default function ClientTabLayout() {
         options={{
           title: 'Bookings',
           tabBarIcon: ({ color }) => <Calendar color={color} size={iconSize} />,
+        }}
+      />
+      <Tabs.Screen
+        name="trainers"
+        options={{
+          title: 'Trainers',
+          tabBarIcon: ({ color }) => <Users color={color} size={iconSize} />,
         }}
       />
       <Tabs.Screen

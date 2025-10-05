@@ -74,27 +74,46 @@ export default function ClientSearchScreen() {
     setRequestingClient(clientId);
     
     try {
-      const { data, error } = await supabase
-        .from('client_trainer_relationships')
-        .insert({
-          client_id: clientId,
-          trainer_id: userProfile.id,
-          requested_by: 'trainer',
-          status: 'pending'
-        })
-        .select()
-        .single();
+      // Check if there's an existing rejected relationship
+      const existingRelationship = trainerRelationships.find(rel => rel.client_id === clientId);
+      
+      if (existingRelationship && existingRelationship.status === 'rejected') {
+        // Update existing rejected relationship to pending
+        const { error } = await supabase
+          .from('client_trainer_relationships')
+          .update({
+            status: 'pending',
+            requested_at: new Date().toISOString(),
+            rejected_at: null,
+            trainer_response: null
+          })
+          .eq('id', existingRelationship.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        // Create new relationship
+        const { data, error } = await supabase
+          .from('client_trainer_relationships')
+          .insert({
+            client_id: clientId,
+            trainer_id: userProfile.id,
+            requested_by: 'trainer',
+            status: 'pending'
+          })
+          .select()
+          .single();
 
-      // Send notification to client
-      const notificationService = NotificationService.getInstance();
-      await notificationService.notifyConnectionRequest(
-        clientId,
-        userProfile.name,
-        data.id,
-        'I would like to add you as my client'
-      );
+        if (error) throw error;
+
+        // Send notification to client
+        const notificationService = NotificationService.getInstance();
+        await notificationService.notifyTrainerAddedClient(
+          clientId,
+          userProfile.name,
+          data.id,
+          'I would like to add you as my client'
+        );
+      }
       
       await fetchTrainerRelationships();
       Alert.alert('Success', 'Client request sent successfully!');
@@ -108,7 +127,7 @@ export default function ClientSearchScreen() {
 
   const getRelationshipStatus = (clientId: string) => {
     const relationship = trainerRelationships.find(rel => rel.client_id === clientId);
-    if (relationship?.status === 'terminated') return null;
+    if (relationship?.status === 'terminated' || relationship?.status === 'rejected') return null;
     return relationship?.status || null;
   };
 

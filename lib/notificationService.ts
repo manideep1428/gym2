@@ -479,6 +479,52 @@ class NotificationService {
     }
   }
 
+  async notifyConnectionRequest(
+    trainerId: string,
+    clientName: string,
+    relationshipId: string,
+    clientMessage?: string
+  ): Promise<void> {
+    try {
+      // Get trainer's push token
+      const { data: trainerProfile } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .eq('id', trainerId)
+        .single();
+
+      if (trainerProfile?.push_token) {
+        const body = clientMessage 
+          ? `${clientName} wants to be your client: "${clientMessage}"`
+          : `${clientName} wants to be your client`;
+
+        await this.sendPushNotification(
+          trainerProfile.push_token,
+          'New Client Request',
+          body,
+          {
+            type: 'connection_request',
+            clientName,
+            relationshipId,
+          }
+        );
+      }
+
+      // Create in-app notification
+      await supabase.from('notifications').insert({
+        user_id: trainerId,
+        title: 'New Client Request',
+        message: clientMessage 
+          ? `${clientName} wants to be your client: "${clientMessage}"`
+          : `${clientName} wants to be your client`,
+        type: 'connection_request',
+        data: { relationshipId, clientName }
+      });
+    } catch (error) {
+      console.error('Error sending connection request notification:', error);
+    }
+  }
+
   async notifyTrainerAddedClient(
     clientId: string,
     trainerName: string,

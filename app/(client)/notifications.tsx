@@ -3,11 +3,13 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, Refresh
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useRouter } from 'expo-router';
 import { supabase, Notification } from '@/lib/supabase';
-import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart } from 'lucide-react-native';
+import { Bell, Calendar, DollarSign, MessageSquare, CheckCircle, Heart, Settings } from 'lucide-react-native';
 
 export default function ClientNotifications() {
   const { colors } = useTheme();
+  const router = useRouter();
   const { userProfile } = useAuth();
   const { notifications, refreshNotifications, markAsRead, markAllAsRead, clearAllNotifications, handleNotificationPress } = useNotifications();
   const [loading, setLoading] = useState(true);
@@ -125,6 +127,12 @@ export default function ClientNotifications() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.settingsButton, { backgroundColor: colors.surface }]}
+            onPress={() => router.push('/(client)/notification-settings')}
+          >
+            <Settings color={colors.textSecondary} size={16} />
+          </TouchableOpacity>
           {notifications.filter(n => !n.is_read).length > 0 && (
             <TouchableOpacity
               style={styles.markAllButton}
@@ -323,5 +331,12 @@ const createStyles = (colors: any) => StyleSheet.create({
   markReadText: {
     fontSize: 10, // Reduced from 12
     fontWeight: '500',
+  },
+  settingsButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

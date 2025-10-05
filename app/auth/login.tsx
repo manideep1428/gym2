@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Animated, E
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function Login() {
@@ -11,6 +11,7 @@ export default function Login() {
   const { signIn } = useAuth();
   const { colors } = useTheme();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -95,14 +96,26 @@ export default function Login() {
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: colors.text }]}>Password</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-              placeholder="Enter your password"
-              placeholderTextColor={colors.textSecondary}
-              value={formData.password}
-              onChangeText={(text) => setFormData({ ...formData, password: text })}
-              secureTextEntry
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border, flex: 1 }]}
+                placeholder="Enter your password"
+                placeholderTextColor={colors.textSecondary}
+                value={formData.password}
+                onChangeText={(text) => setFormData({ ...formData, password: text })}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeOff color={colors.textSecondary} size={20} />
+                ) : (
+                  <Eye color={colors.textSecondary} size={20} />
+                )}
+              </TouchableOpacity>
+            </View>
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>Use at least 8 characters.</Text>
           </View>
 
@@ -176,6 +189,19 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 14, // Reduced from 16
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    borderColor: colors.border,
+  },
+  eyeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   helperText: {
     fontSize: 12,

@@ -67,7 +67,9 @@
         "VIBRATE",
         "WAKE_LOCK",
         "NOTIFICATIONS",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -79,7 +81,8 @@
         "sound": "./assets/notifications.mp3",
         "androidMode": "default",
         "androidCollapsedTitle": "GYM App"
-      }
+      },
+      "googleServicesFile": "./google-services.json"
     },
     "notification": {
       "icon": "./assets/images/icon.png",

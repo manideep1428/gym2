@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Alert, RefreshControl } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Profile, Booking } from '@/lib/supabase';
@@ -22,6 +22,7 @@ export default function TrainerClients() {
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [expandedRemoveTimer, setExpandedRemoveTimer] = useState(5);
   const [expandedCanRemove, setExpandedCanRemove] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
 
   const styles = createStyles(colors);
@@ -59,6 +60,15 @@ export default function TrainerClients() {
       console.error('Error fetching clients:', error);
     } finally {
       setClientsLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchClients();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -181,7 +191,7 @@ export default function TrainerClients() {
         <View style={styles.clientMainRow}>
           <TouchableOpacity
             style={styles.clientContent}
-            onPress={() => setSelectedClient(client)}
+            onPress={() => router.push(`/(trainer)/client-profile?clientId=${client.id}`)}
           >
             <View style={[styles.clientAvatar, { backgroundColor: colors.primary }]}>
               <User color="#FFFFFF" size={24} />
@@ -329,6 +339,14 @@ export default function TrainerClients() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.clientsList}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
       )}
 

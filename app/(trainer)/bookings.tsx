@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Booking, Profile } from '@/lib/supabase';
@@ -15,6 +15,7 @@ export default function TrainerBookings() {
   const [loading, setLoading] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [addingToCalendar, setAddingToCalendar] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const styles = createStyles(colors);
 
@@ -65,6 +66,16 @@ export default function TrainerBookings() {
       console.error('Error fetching bookings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchBookings();
+      await checkCalendarConnection();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -370,12 +381,19 @@ export default function TrainerBookings() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.bookingsList}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
       )}
     </View>
   );
 }
-
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,

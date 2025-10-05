@@ -1,38 +1,86 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert, ScrollView, RefreshControl } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase, TrainingPackage } from '@/lib/supabase';
-import { Package, Plus, CreditCard as Edit, Trash2, X, DollarSign, Calendar, Clock, Settings } from 'lucide-react-native';
+import { supabase, Profile } from '@/lib/supabase';
+import NotificationService from '@/lib/notificationService';
+import { Package, Plus, X, DollarSign, Calendar, Clock, Settings, User, CheckCircle, XCircle, AlertCircle, Send } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { CompactPackageCardSkeleton } from '@/components/SkeletonLoader';
+
+interface CustomPackage {
+  id: string;
+  client_id: string;
+  name: string;
+  description: string;
+  price: number;
+  sessions_included: number;
+  validity_days: number;
+  status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  features: string[];
+  created_at: string;
+  client?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+interface PublicPackage {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  session_count: number;
+  duration_days: number;
+  is_active: boolean;
+  created_at: string;
+}
 
 export default function TrainerPackages() {
   const { colors } = useTheme();
   const { userProfile } = useAuth();
   const router = useRouter();
-  const [packages, setPackages] = useState<TrainingPackage[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingPackage, setEditingPackage] = useState<TrainingPackage | null>(null);
-  const [newPackage, setNewPackage] = useState({
-    name: '',
-    description: '',
-    category: 'Personal Training',
-    price: '',
-    session_count: '',
-    duration_days: '',
-  });
+  const [customPackages, setCustomPackages] = useState<CustomPackage[]>([]);
+  const [publicPackages, setPublicPackages] = useState<PublicPackage[]>([]);
+  const [clients, setClients] = useState<Profile[]>([]);
+  const [showClientModal, setShowClientModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'public' | 'custom'>('custom');
+  const [refreshing, setRefreshing] = useState(false);
 
   const styles = createStyles(colors);
 
-  const categories = ['Personal Training', 'Group Sessions', 'Nutrition Consultation', 'Custom'];
-
   useEffect(() => {
-    fetchPackages();
+    fetchCustomPackages();
+    fetchPublicPackages();
+    fetchClients();
   }, []);
 
-  const fetchPackages = async () => {
+  const fetchCustomPackages = async () => {
+    if (!userProfile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('custom_packages')
+        .select(`
+          *,
+          client:profiles!custom_packages_client_id_fkey(id, name, email)
+        `)
+        .eq('trainer_id', userProfile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCustomPackages(data || []);
+    } catch (error) {
+      console.error('Error fetching custom packages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPublicPackages = async () => {
     if (!userProfile) return;
 
     try {
@@ -43,100 +91,171 @@ export default function TrainerPackages() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPackages(data || []);
+      setPublicPackages(data || []);
     } catch (error) {
-      console.error('Error fetching packages:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching public packages:', error);
     }
   };
 
-  const createPackage = async () => {
+  const fetchClients = async () => {
     if (!userProfile) return;
 
-    if (!newPackage.name || !newPackage.price || !newPackage.session_count || !newPackage.duration_days) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
     try {
-      const { error } = await supabase
-        .from('training_packages')
-        .insert({
-          name: newPackage.name,
-          description: newPackage.description,
-          category: newPackage.category,
-          price: parseFloat(newPackage.price),
-          session_count: parseInt(newPackage.session_count),
-          duration_days: parseInt(newPackage.duration_days),
-          created_by: userProfile.id,
-        });
+      const { data: relationshipsData, error: relationshipsError } = await supabase
+        .from('client_trainer_relationships')
+        .select(`
+          client_id,
+          client:profiles!client_trainer_relationships_client_id_fkey(*)
+        `)
+        .eq('trainer_id', userProfile.id)
+        .eq('status', 'approved');
 
-      if (error) throw error;
+      if (relationshipsError) throw relationshipsError;
 
-      Alert.alert('Success', 'Package created successfully!');
-      setShowCreateModal(false);
-      resetForm();
-      fetchPackages();
+      const connectedClients = (relationshipsData?.map(r => r.client).filter(Boolean) || []) as unknown as Profile[];
+      setClients(connectedClients);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create package');
-      console.error('Create package error:', error);
+      console.error('Error fetching clients:', error);
     }
   };
 
-  const deletePackage = async (packageId: string) => {
+  const handleClientSelect = (client: Profile) => {
+    setShowClientModal(false);
+    router.push(`/(trainer)/client-profile?clientId=${client.id}`);
+  };
+
+  const handleCreatePublicPackage = () => {
+    router.push('/(trainer)/create-package');
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchCustomPackages(),
+        fetchPublicPackages(),
+        fetchClients()
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleSendPackage = async (pkg: CustomPackage) => {
     Alert.alert(
-      'Delete Package',
-      'Are you sure you want to delete this package?',
+      'Send Package',
+      `Send "${pkg.name}" package to ${pkg.client?.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: 'Send',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('training_packages')
-                .delete()
-                .eq('id', packageId);
-
-              if (error) throw error;
-              fetchPackages();
+              if (!userProfile) return;
+              
+              // Send notification to client
+              const notificationService = NotificationService.getInstance();
+              await notificationService.notifyCustomPackage(
+                pkg.client_id,
+                userProfile.name,
+                pkg.name,
+                pkg.id
+              );
+              
+              Alert.alert('Success', 'Package sent successfully!');
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete package');
+              console.error('Error sending package:', error);
+              Alert.alert('Error', 'Failed to send package. Please try again.');
             }
-          },
-        },
+          }
+        }
       ]
     );
   };
 
-  const togglePackageStatus = async (packageId: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('training_packages')
-        .update({ is_active: !currentStatus })
-        .eq('id', packageId);
-
-      if (error) throw error;
-      fetchPackages();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update package status');
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'accepted': return colors.success;
+      case 'pending': return colors.warning;
+      case 'rejected': return colors.error;
+      case 'expired': return colors.textSecondary;
+      default: return colors.textSecondary;
     }
   };
 
-  const resetForm = () => {
-    setNewPackage({
-      name: '',
-      description: '',
-      category: 'Personal Training',
-      price: '',
-      session_count: '',
-      duration_days: '',
-    });
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'accepted': return <CheckCircle color="#FFFFFF" size={12} />;
+      case 'pending': return <Clock color="#FFFFFF" size={12} />;
+      case 'rejected': return <XCircle color="#FFFFFF" size={12} />;
+      case 'expired': return <AlertCircle color="#FFFFFF" size={12} />;
+      default: return <Clock color="#FFFFFF" size={12} />;
+    }
   };
 
-  const renderPackageCard = ({ item: pkg }: { item: TrainingPackage }) => (
+  const renderPackageCard = ({ item: pkg }: { item: CustomPackage }) => (
+    <View style={[styles.packageCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.packageHeader}>
+        <View style={styles.packageInfo}>
+          <Text style={[styles.packageName, { color: colors.text }]}>{pkg.name}</Text>
+          <View style={styles.clientRow}>
+            <User color={colors.textSecondary} size={12} />
+            <Text style={[styles.clientName, { color: colors.textSecondary }]}>
+              {pkg.client?.name}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(pkg.status) }]}>
+          {getStatusIcon(pkg.status)}
+          <Text style={styles.statusText}>{pkg.status}</Text>
+        </View>
+      </View>
+
+      {pkg.description && (
+        <Text style={[styles.packageDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+          {pkg.description}
+        </Text>
+      )}
+
+      <View style={styles.packageDetails}>
+        <View style={styles.detailRow}>
+          <DollarSign color={colors.primary} size={16} />
+          <Text style={[styles.packagePrice, { color: colors.primary }]}>${pkg.price}</Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <Calendar color={colors.textSecondary} size={16} />
+          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
+            {pkg.sessions_included} sessions
+          </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <Clock color={colors.textSecondary} size={16} />
+          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
+            {pkg.validity_days} days
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.packageFooter}>
+        <Text style={[styles.createdDate, { color: colors.textSecondary }]}>
+          Created: {new Date(pkg.created_at).toLocaleDateString()}
+        </Text>
+        
+        <TouchableOpacity
+          style={[styles.sendButton, { backgroundColor: colors.primary }]}
+          onPress={() => handleSendPackage(pkg)}
+        >
+          <Send color="#FFFFFF" size={14} />
+          <Text style={styles.sendButtonText}>Send</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderPublicPackageCard = ({ item: pkg }: { item: PublicPackage }) => (
     <View style={[styles.packageCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.packageHeader}>
         <View style={styles.packageInfo}>
@@ -146,26 +265,16 @@ export default function TrainerPackages() {
           </View>
         </View>
         
-        <View style={styles.packageActions}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => togglePackageStatus(pkg.id, pkg.is_active)}
-          >
-            <Text style={[styles.statusToggle, { color: pkg.is_active ? colors.success : colors.error }]}>
-              {pkg.is_active ? 'Active' : 'Inactive'}
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => deletePackage(pkg.id)}
-          >
-            <Trash2 color={colors.error} size={16} />
-          </TouchableOpacity>
+        <View style={[styles.statusBadge, { backgroundColor: pkg.is_active ? colors.success : colors.error }]}>
+          <Text style={styles.statusText}>{pkg.is_active ? 'Active' : 'Inactive'}</Text>
         </View>
       </View>
 
-      <Text style={[styles.packageDescription, { color: colors.textSecondary }]}>{pkg.description}</Text>
+      {pkg.description && (
+        <Text style={[styles.packageDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+          {pkg.description}
+        </Text>
+      )}
 
       <View style={styles.packageDetails}>
         <View style={styles.detailRow}>
@@ -183,10 +292,14 @@ export default function TrainerPackages() {
         <View style={styles.detailRow}>
           <Clock color={colors.textSecondary} size={16} />
           <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-            Valid for {pkg.duration_days} days
+            {pkg.duration_days} days
           </Text>
         </View>
       </View>
+
+      <Text style={[styles.createdDate, { color: colors.textSecondary }]}>
+        Created: {new Date(pkg.created_at).toLocaleDateString()}
+      </Text>
     </View>
   );
 
@@ -196,13 +309,14 @@ export default function TrainerPackages() {
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: colors.text }]}>My Packages</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {loading ? 'Loading...' : `${packages.filter(p => p.is_active).length} active packages`}
+            {loading ? 'Loading...' : 
+             activeTab === 'custom' ? `${customPackages.length} custom packages sent to clients` : 
+             `${publicPackages.length} public packages available`}
           </Text>
         </View>
         
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[styles.manageButton, { backgroundColor: colors.surface }]}
             onPress={() => router.push('/(trainer)/package-management')}
           >
             <Settings color={colors.text} size={20} />
@@ -210,12 +324,45 @@ export default function TrainerPackages() {
           
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={() => setShowCreateModal(true)}
-            disabled={loading}
+            onPress={activeTab === 'custom' ? () => setShowClientModal(true) : handleCreatePublicPackage}
+            disabled={loading || (activeTab === 'custom' && clients.length === 0)}
           >
             <Plus color="#FFFFFF" size={20} />
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            { borderBottomColor: activeTab === 'public' ? colors.primary : 'transparent' }
+          ]}
+          onPress={() => setActiveTab('public')}
+        >
+          <Text style={[
+            styles.tabText,
+            { color: activeTab === 'public' ? colors.primary : colors.textSecondary }
+          ]}>
+            Public Packages ({publicPackages.length})
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            { borderBottomColor: activeTab === 'custom' ? colors.primary : 'transparent' }
+          ]}
+          onPress={() => setActiveTab('custom')}
+        >
+          <Text style={[
+            styles.tabText,
+            { color: activeTab === 'custom' ? colors.primary : colors.textSecondary }
+          ]}>
+            Custom Packages ({customPackages.length})
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -225,37 +372,73 @@ export default function TrainerPackages() {
           <CompactPackageCardSkeleton />
           <CompactPackageCardSkeleton />
         </View>
-      ) : packages.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Package color={colors.textSecondary} size={48} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No packages created</Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            Create training packages for your clients to purchase
-          </Text>
-        </View>
+      ) : activeTab === 'custom' ? (
+        customPackages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Package color={colors.textSecondary} size={48} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No custom packages yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Create custom packages for your clients using the + button
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={customPackages}
+            renderItem={renderPackageCard}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.packagesList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        )
       ) : (
-        <FlatList
-          data={packages}
-          renderItem={renderPackageCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.packagesList}
-          showsVerticalScrollIndicator={false}
-        />
+        publicPackages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Package color={colors.textSecondary} size={48} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No public packages yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Create public packages that clients can purchase directly
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={publicPackages}
+            renderItem={renderPublicPackageCard}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.packagesList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        )
       )}
 
-      {/* Create/Edit Package Modal */}
+      {/* Client Selection Modal */}
       <Modal
-        visible={showCreateModal}
+        visible={showClientModal}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowCreateModal(false)}
+        onRequestClose={() => setShowClientModal(false)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+            <TouchableOpacity onPress={() => setShowClientModal(false)}>
               <X color={colors.text} size={24} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Create Package</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Client</Text>
             <View style={{ width: 24 }} />
           </View>
 
@@ -263,101 +446,37 @@ export default function TrainerPackages() {
             style={styles.modalContent}
             contentContainerStyle={styles.modalScrollContent}
             showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Package Name</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-                placeholder="e.g., Personal Training - Starter"
-                placeholderTextColor={colors.textSecondary}
-                value={newPackage.name}
-                onChangeText={(text) => setNewPackage({ ...newPackage, name: text })}
-              />
-            </View>
+            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+              Select a client to view their profile:
+            </Text>
 
-            <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Description</Text>
-              <TextInput
-                style={[styles.textArea, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-                placeholder="Describe what this package includes..."
-                placeholderTextColor={colors.textSecondary}
-                value={newPackage.description}
-                onChangeText={(text) => setNewPackage({ ...newPackage, description: text })}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-
-            <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Category</Text>
-              <View style={styles.categorySelector}>
-                {categories.map((category) => (
-                  <TouchableOpacity
-                    key={category}
-                    style={[
-                      styles.categoryOption,
-                      { borderColor: colors.border, backgroundColor: colors.surface },
-                      newPackage.category === category && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
-                    ]}
-                    onPress={() => setNewPackage({ ...newPackage, category })}
-                  >
-                    <Text style={[
-                      styles.categoryOptionText,
-                      { color: newPackage.category === category ? colors.primary : colors.text }
-                    ]}>
-                      {category}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {clients.length === 0 ? (
+              <View style={styles.emptyClientState}>
+                <User color={colors.textSecondary} size={48} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No clients found</Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                  Add clients first to create custom packages for them
+                </Text>
               </View>
-            </View>
-
-            <View style={styles.formRow}>
-              <View style={[styles.formSection, { flex: 1, marginRight: 10 }]}>
-                <Text style={[styles.formLabel, { color: colors.text }]}>Price ($)</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-                  placeholder="299.99"
-                  placeholderTextColor={colors.textSecondary}
-                  value={newPackage.price}
-                  onChangeText={(text) => setNewPackage({ ...newPackage, price: text })}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View style={[styles.formSection, { flex: 1, marginLeft: 10 }]}>
-                <Text style={[styles.formLabel, { color: colors.text }]}>Sessions</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-                  placeholder="8"
-                  placeholderTextColor={colors.textSecondary}
-                  value={newPackage.session_count}
-                  onChangeText={(text) => setNewPackage({ ...newPackage, session_count: text })}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-
-            <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Validity (days)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-                placeholder="30"
-                placeholderTextColor={colors.textSecondary}
-                value={newPackage.duration_days}
-                onChangeText={(text) => setNewPackage({ ...newPackage, duration_days: text })}
-                keyboardType="number-pad"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: colors.primary }]}
-              onPress={createPackage}
-            >
-              <Package color="#FFFFFF" size={20} />
-              <Text style={styles.submitButtonText}>Create Package</Text>
-            </TouchableOpacity>
+            ) : (
+              clients.map((client) => (
+                <TouchableOpacity
+                  key={client.id}
+                  style={[styles.clientCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => handleClientSelect(client)}
+                >
+                  <View style={[styles.clientAvatar, { backgroundColor: colors.primary }]}>
+                    <User color="#FFFFFF" size={20} />
+                  </View>
+                  <View style={styles.clientInfo}>
+                    <Text style={[styles.clientNameText, { color: colors.text }]}>{client.name}</Text>
+                    <Text style={[styles.clientEmail, { color: colors.textSecondary }]}>{client.email}</Text>
+                  </View>
+                  <Plus color={colors.primary} size={20} />
+                </TouchableOpacity>
+              ))
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -522,58 +641,102 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  formSection: {
-    marginBottom: 24,
-  },
-  formRow: {
-    flexDirection: 'row',
-  },
-  formLabel: {
+  modalDescription: {
     fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: 20,
+    lineHeight: 24,
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+  emptyClientState: {
+    alignItems: 'center',
+    paddingVertical: 60,
   },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    textAlignVertical: 'top',
-  },
-  categorySelector: {
-    gap: 8,
-  },
-  categoryOption: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  categoryOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  submitButton: {
+  clientCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
+    padding: 16,
     borderRadius: 12,
-    marginTop: 24,
-    marginBottom: 40,
+    borderWidth: 1,
+    marginBottom: 12,
   },
-  submitButtonText: {
+  clientAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  clientInfo: {
+    flex: 1,
+  },
+  clientNameText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  clientEmail: {
+    fontSize: 14,
+  },
+  clientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  clientName: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  createdDate: {
+    fontSize: 11,
+    marginTop: 12,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    alignItems: 'center',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  packageFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  sendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  sendButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '600',
   },
 });

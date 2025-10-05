@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Alert, RefreshControl } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, TrainingPackage, Profile } from '@/lib/supabase';
@@ -13,6 +13,7 @@ export default function ClientPackages() {
   const [loading, setLoading] = useState(true);
   const [selectedPackage, setSelectedPackage] = useState<(TrainingPackage & { trainer: Profile }) | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const styles = createStyles(colors);
 
@@ -73,6 +74,15 @@ export default function ClientPackages() {
   const openPackageDetails = (pkg: TrainingPackage & { trainer: Profile }) => {
     setSelectedPackage(pkg);
     setModalVisible(true);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchPackages();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const closePackageDetails = () => {
@@ -138,6 +148,14 @@ export default function ClientPackages() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.packagesList}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
       )}
 

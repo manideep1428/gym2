@@ -14,9 +14,12 @@ export default function CreatePackageScreen() {
   const router = useRouter();
   const { clientId } = useLocalSearchParams();
 
+  const isPublicPackage = !clientId;
+
   const [client, setClient] = useState<Profile | null>(null);
   const [packageName, setPackageName] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [sessionsIncluded, setSessionsIncluded] = useState('1');
   const [validityDays, setValidityDays] = useState('30');
@@ -66,65 +69,101 @@ export default function CreatePackageScreen() {
   };
 
   const createPackage = async () => {
-    if (!userProfile || !client) return;
+    if (!userProfile) return;
 
-    if (!packageName.trim() || !price.trim() || !sessionsIncluded.trim()) {
-      Alert.alert('Error', 'Please fill in all required fields');
-      return;
+    if (isPublicPackage) {
+      // Validation for public package
+      if (!packageName.trim() || !price.trim() || !category.trim() || !sessionsIncluded.trim() || !validityDays.trim()) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
+    } else {
+      // Validation for custom package
+      if (!client || !packageName.trim() || !price.trim() || !sessionsIncluded.trim()) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
-      // Get the relationship ID
-      const { data: relationship, error: relationshipError } = await supabase
-        .from('client_trainer_relationships')
-        .select('id')
-        .eq('trainer_id', userProfile.id)
-        .eq('client_id', client.id)
-        .eq('status', 'approved')
-        .single();
+      if (isPublicPackage) {
+        // Create public package
+        const { data, error } = await supabase
+          .from('training_packages')
+          .insert({
+            name: packageName.trim(),
+            description: description.trim(),
+            category: category.trim(),
+            price: parseFloat(price),
+            session_count: parseInt(sessionsIncluded),
+            duration_days: parseInt(validityDays),
+            is_active: true,
+            created_by: userProfile.id,
+          })
+          .select()
+          .single();
 
-      if (relationshipError) {
-        Alert.alert('Error', 'You must have an approved relationship with this client first');
-        return;
+        if (error) throw error;
+
+        Alert.alert(
+          'Success',
+          'Public package created successfully!',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      } else {
+        // Create custom package (existing logic)
+        // Get the relationship ID
+        const { data: relationship, error: relationshipError } = await supabase
+          .from('client_trainer_relationships')
+          .select('id')
+          .eq('trainer_id', userProfile.id)
+          .eq('client_id', client!.id)
+          .eq('status', 'approved')
+          .single();
+
+        if (relationshipError) {
+          Alert.alert('Error', 'You must have an approved relationship with this client first');
+          return;
+        }
+
+        const filteredFeatures = features.filter(f => f.trim() !== '');
+
+        const { data, error } = await supabase
+          .from('custom_packages')
+          .insert({
+            trainer_id: userProfile.id,
+            client_id: client!.id,
+            relationship_id: relationship.id,
+            name: packageName.trim(),
+            description: description.trim(),
+            price: parseFloat(price),
+            sessions_included: parseInt(sessionsIncluded),
+            validity_days: parseInt(validityDays),
+            features: filteredFeatures,
+            terms_conditions: termsConditions.trim(),
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Send notification to client
+        const notificationService = NotificationService.getInstance();
+        await notificationService.notifyCustomPackage(
+          client!.id,
+          userProfile.name,
+          packageName,
+          data.id
+        );
+
+        Alert.alert(
+          'Success',
+          'Package created and sent to client successfully!',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
       }
-
-      const filteredFeatures = features.filter(f => f.trim() !== '');
-
-      const { data, error } = await supabase
-        .from('custom_packages')
-        .insert({
-          trainer_id: userProfile.id,
-          client_id: client.id,
-          relationship_id: relationship.id,
-          name: packageName.trim(),
-          description: description.trim(),
-          price: parseFloat(price),
-          sessions_included: parseInt(sessionsIncluded),
-          validity_days: parseInt(validityDays),
-          features: filteredFeatures,
-          terms_conditions: termsConditions.trim(),
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Send notification to client
-      const notificationService = NotificationService.getInstance();
-      await notificationService.notifyCustomPackage(
-        client.id,
-        userProfile.name,
-        packageName,
-        data.id
-      );
-
-      Alert.alert(
-        'Success',
-        'Package created and sent to client successfully!',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
     } catch (error) {
       console.error('Error creating package:', error);
       Alert.alert('Error', 'Failed to create package. Please try again.');
@@ -139,7 +178,9 @@ export default function CreatePackageScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft color={colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Create Package</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          {isPublicPackage ? 'Create Public Package' : 'Create Package'}
+        </Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -190,6 +231,19 @@ export default function CreatePackageScreen() {
             />
           </View>
 
+          {isPublicPackage && (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Category *</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g., Weight Loss, Strength Training"
+                placeholderTextColor={colors.textSecondary}
+                value={category}
+                onChangeText={setCategory}
+              />
+            </View>
+          )}
+
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
               <Text style={[styles.label, { color: colors.text }]}>Price ($) *</Text>
@@ -238,45 +292,49 @@ export default function CreatePackageScreen() {
           </View>
         </View>
 
-        <View style={[styles.section, { backgroundColor: colors.card }]}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Package Features</Text>
-            <TouchableOpacity onPress={addFeature} style={[styles.addButton, { backgroundColor: colors.primary }]}>
-              <Plus color="#FFFFFF" size={16} />
-            </TouchableOpacity>
-          </View>
-
-          {features.map((feature, index) => (
-            <View key={index} style={styles.featureRow}>
-              <TextInput
-                style={[styles.featureInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder={`Feature ${index + 1}`}
-                placeholderTextColor={colors.textSecondary}
-                value={feature}
-                onChangeText={(value) => updateFeature(index, value)}
-              />
-              {features.length > 1 && (
-                <TouchableOpacity onPress={() => removeFeature(index)} style={styles.removeButton}>
-                  <X color={colors.error} size={16} />
-                </TouchableOpacity>
-              )}
+        {!isPublicPackage && (
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Package Features</Text>
+              <TouchableOpacity onPress={addFeature} style={[styles.addButton, { backgroundColor: colors.primary }]}>
+                <Plus color="#FFFFFF" size={16} />
+              </TouchableOpacity>
             </View>
-          ))}
-        </View>
 
-        <View style={[styles.section, { backgroundColor: colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Terms & Conditions</Text>
-          <TextInput
-            style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-            placeholder="Add any terms and conditions for this package..."
-            placeholderTextColor={colors.textSecondary}
-            value={termsConditions}
-            onChangeText={setTermsConditions}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
+            {features.map((feature, index) => (
+              <View key={index} style={styles.featureRow}>
+                <TextInput
+                  style={[styles.featureInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder={`Feature ${index + 1}`}
+                  placeholderTextColor={colors.textSecondary}
+                  value={feature}
+                  onChangeText={(value) => updateFeature(index, value)}
+                />
+                {features.length > 1 && (
+                  <TouchableOpacity onPress={() => removeFeature(index)} style={styles.removeButton}>
+                    <X color={colors.error} size={16} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {!isPublicPackage && (
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Terms & Conditions</Text>
+            <TextInput
+              style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              placeholder="Add any terms and conditions for this package..."
+              placeholderTextColor={colors.textSecondary}
+              value={termsConditions}
+              onChangeText={setTermsConditions}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
+        )}
 
         <TouchableOpacity
           style={[styles.createButton, { backgroundColor: colors.primary }]}
@@ -285,7 +343,7 @@ export default function CreatePackageScreen() {
         >
           <Package color="#FFFFFF" size={20} />
           <Text style={styles.createButtonText}>
-            {loading ? 'Creating Package...' : 'Create & Send Package'}
+            {loading ? 'Creating Package...' : (isPublicPackage ? 'Create Public Package' : 'Create & Send Package')}
           </Text>
         </TouchableOpacity>
       </ScrollView>
