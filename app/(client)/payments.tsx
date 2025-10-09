@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, PaymentRequest, Profile } from '@/lib/supabase';
 import NotificationService from '@/lib/notificationService';
-import { ClientPaymentsSkeleton } from '@/components/SkeletonLoader';
+import { ClientPaymentsSkeleton, CompactPaymentCardSkeleton } from '@/components/SkeletonLoader';
 import { CreditCard, DollarSign, User, Calendar, CheckCircle, Clock, XCircle, X, Info, ChevronRight } from 'lucide-react-native';
 
 export default function ClientPayments() {
@@ -13,6 +13,7 @@ export default function ClientPayments() {
   const [paymentRequests, setPaymentRequests] = useState<(PaymentRequest & { trainer: Profile })[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [headerLoading, setHeaderLoading] = useState(true);
   const [selectedPayment, setSelectedPayment] = useState<(PaymentRequest & { trainer: Profile }) | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -42,6 +43,7 @@ export default function ClientPayments() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setHeaderLoading(false);
     }
   };
 
@@ -107,6 +109,7 @@ export default function ClientPayments() {
 
   const onRefresh = () => {
     setRefreshing(true);
+    setHeaderLoading(true);
     fetchPaymentRequests();
   };
 
@@ -189,9 +192,13 @@ export default function ClientPayments() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: colors.text }]}>Payment Requests</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {paymentRequests.filter(p => p.status === 'pending').length} pending payments
-          </Text>
+          {headerLoading ? (
+            <View style={{ width: 120, height: 16, backgroundColor: colors.border, borderRadius: 4, marginTop: 5 }} />
+          ) : (
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {paymentRequests.filter(p => p.status === 'pending').length} pending payments
+            </Text>
+          )}
         </View>
       </View>
 
@@ -202,6 +209,14 @@ export default function ClientPayments() {
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             Your trainers will send payment requests here
           </Text>
+        </View>
+      ) : loading ? (
+        <View style={styles.paymentsList}>
+          <CompactPaymentCardSkeleton />
+          <CompactPaymentCardSkeleton />
+          <CompactPaymentCardSkeleton />
+          <CompactPaymentCardSkeleton />
+          <CompactPaymentCardSkeleton />
         </View>
       ) : (
         <FlatList
