@@ -14,6 +14,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { NotificationBadge } from '@/components/NotificationBadge';
 import { View } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   useDeviceInfo,
   getAdaptiveTabBarStyle,
@@ -23,11 +24,19 @@ import {
 
 export default function TrainerTabLayout() {
   const { colors } = useTheme();
-  const { unreadCount, notifications } = useNotifications();
+  const { unreadCount, notifications, markAllAsRead } = useNotifications();
+  const router = useRouter();
   const deviceInfo = useDeviceInfo();
   const adaptiveStyle = getAdaptiveTabBarStyle(deviceInfo);
   const iconSize = getAdaptiveIconSize(adaptiveStyle.height);
   const fontSize = getAdaptiveFontSize(adaptiveStyle.height);
+
+  const handleNotificationPress = () => {
+    router.push('/(trainer)/notifications');
+    if (unreadCount > 0) {
+      markAllAsRead();
+    }
+  };
 
   // Count connection request notifications for trainers and booking requests for bookings tab, payment confirmations for payments tab
   const connectionRequestCount = notifications.filter(n => 
@@ -39,6 +48,9 @@ export default function TrainerTabLayout() {
   const paymentConfirmationCount = notifications.filter(n => 
     !n.is_read && n.type === 'payment_confirmation'
   ).length;
+  
+  // Count all pending items for the pending tab
+  const totalPendingCount = connectionRequestCount + bookingRequestCount + paymentConfirmationCount;
 
   return (
     <Tabs
@@ -95,7 +107,7 @@ export default function TrainerTabLayout() {
           ),
         }}
       />
-            <Tabs.Screen
+      <Tabs.Screen
         name="availability"
         options={{
           title: 'Availability',
@@ -109,7 +121,7 @@ export default function TrainerTabLayout() {
       <Tabs.Screen
         name="clients"
         options={{
-          title: 'Clients',
+          title: 'My Clients',
           tabBarIcon: ({ color }) => (
             <View style={{ position: 'relative' }}>
               <Users color={color} size={iconSize} />
@@ -161,12 +173,13 @@ export default function TrainerTabLayout() {
         options={{
           href: null, // Hide from tab bar
         }}
-      /><Tabs.Screen
-      name="client-profile"
-      options={{
-        href: null, // Hide from tab bar
-      }}
-    />
+      />
+      <Tabs.Screen
+        name="client-profile"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
       <Tabs.Screen
         name="payments"
         options={{
@@ -200,6 +213,14 @@ export default function TrainerTabLayout() {
               )}
             </View>
           ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            if (unreadCount > 0) {
+              e.preventDefault();
+              handleNotificationPress();
+            }
+          },
         }}
       />
     </Tabs>

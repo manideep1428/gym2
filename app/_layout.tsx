@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import { StatusBar } from '@/node_modules/.pnpm/expo-status-bar@3.0.8_react_fdaaae43ec7bc36f61b01e42b40372de/node_modules/expo-status-bar/build/StatusBar';
+import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';

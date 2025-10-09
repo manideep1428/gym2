@@ -319,7 +319,6 @@ export default function TrainerPackages() {
           <TouchableOpacity
             onPress={() => router.push('/(trainer)/package-management')}
           >
-            <Settings color={colors.text} size={20} />
           </TouchableOpacity>
           
           <TouchableOpacity

@@ -8,11 +8,13 @@ import {
   Bell,
   CreditCard,
   Users,
+  Clock,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { NotificationBadge } from '@/components/NotificationBadge';
-import { View } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   useDeviceInfo,
   getAdaptiveTabBarStyle,
@@ -22,16 +24,36 @@ import {
 
 export default function ClientTabLayout() {
   const { colors } = useTheme();
-  const { unreadCount, notifications } = useNotifications();
+  const { unreadCount, notifications, markAllAsRead } = useNotifications();
+  const router = useRouter();
   const deviceInfo = useDeviceInfo();
   const adaptiveStyle = getAdaptiveTabBarStyle(deviceInfo);
   const iconSize = getAdaptiveIconSize(adaptiveStyle.height);
   const fontSize = getAdaptiveFontSize(adaptiveStyle.height);
 
+  const handleNotificationPress = () => {
+    router.push('/(client)/notifications');
+    if (unreadCount > 0) {
+      markAllAsRead();
+    }
+  };
+
   // Count payment request notifications for clients
   const paymentRequestCount = notifications.filter(n => 
     !n.is_read && n.type === 'payment_request'
   ).length;
+  
+  // Count trainer requests and other pending items
+  const trainerRequestCount = notifications.filter(n => 
+    !n.is_read && n.type === 'connection_request'
+  ).length;
+  
+  // Count booking notifications
+  const bookingNotificationCount = notifications.filter(n => 
+    !n.is_read && (n.type === 'booking_accepted' || n.type === 'booking_rejected' || n.type === 'booking_cancelled')
+  ).length;
+  
+  const totalPendingCount = paymentRequestCount + trainerRequestCount + bookingNotificationCount;
 
   return (
     <Tabs
@@ -75,14 +97,28 @@ export default function ClientTabLayout() {
         name="bookings"
         options={{
           title: 'Bookings',
-          tabBarIcon: ({ color }) => <Calendar color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Calendar color={color} size={iconSize} />
+              {bookingNotificationCount > 0 && (
+                <NotificationBadge count={bookingNotificationCount} size="small" />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="trainers"
         options={{
           title: 'Trainers',
-          tabBarIcon: ({ color }) => <Users color={color} size={iconSize} />,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: 'relative' }}>
+              <Users color={color} size={iconSize} />
+              {trainerRequestCount > 0 && (
+                <NotificationBadge count={trainerRequestCount} size="small" />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
@@ -155,12 +191,16 @@ export default function ClientTabLayout() {
         options={{
           title: 'Account',
           tabBarIcon: ({ color }) => (
-            <View style={{ position: 'relative' }}>
+            <TouchableOpacity 
+              style={{ position: 'relative' }}
+              onPress={handleNotificationPress}
+              activeOpacity={0.7}
+            >
               <User color={color} size={iconSize} />
               {unreadCount > 0 && (
                 <NotificationBadge count={unreadCount} size="small" />
               )}
-            </View>
+            </TouchableOpacity>
           ),
         }}
       />

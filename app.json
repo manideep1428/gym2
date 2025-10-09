@@ -56,7 +56,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5a24605a-37f8-4d2b-8893-c5b22190a2ab"
+        "projectId": "f77908c5-de15-4bd0-8d89-603bd79d38ae"
       }
     },
     "owner": "manideep1428",
@@ -81,8 +81,7 @@
         "sound": "./assets/notifications.mp3",
         "androidMode": "default",
         "androidCollapsedTitle": "GYM App"
-      },
-      "googleServicesFile": "./google-services.json"
+      }
     },
     "notification": {
       "icon": "./assets/images/icon.png",

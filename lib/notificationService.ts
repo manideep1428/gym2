@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
+import * as Device from 'expo-device';
 
 // Conditionally import expo-notifications to avoid issues in Expo Go
 let Notifications: any = null;
@@ -57,15 +58,31 @@ class NotificationService {
       return false;
     }
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+    try {
+      // Check if device supports notifications
+      if (!Device.isDevice) {
+        console.warn('Must use physical device for Push Notifications');
+        return false;
+      }
 
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        console.warn('Failed to get push token for push notification!');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error requesting permissions:', error);
+      return false;
     }
-
-    return finalStatus === 'granted';
   }
 
   async getExpoPushToken(): Promise<string | null> {
@@ -75,7 +92,17 @@ class NotificationService {
     }
 
     try {
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      // Check if device supports notifications
+      if (!Device.isDevice) {
+        console.warn('Must use physical device for Push Notifications');
+        return null;
+      }
+
+      const token = (await Notifications.getExpoPushTokenAsync({
+        projectId: 'f77908c5-de15-4bd0-8d89-603bd79d38ae', // Your EAS project ID
+      })).data;
+      
+      console.log('✅ Got Expo push token:', token.substring(0, 20) + '...');
       return token;
     } catch (error) {
       console.error('Error getting push token:', error);
@@ -85,23 +112,57 @@ class NotificationService {
 
   async registerForPushNotifications(userId: string): Promise<void> {
     try {
+      console.log('🔔 Registering for push notifications for user:', userId);
+      
       const hasPermission = await this.requestPermissions();
       
       if (!hasPermission) {
-        throw new Error('Push notification permissions not granted');
+        console.warn('❌ Push notification permissions not granted');
+        return;
       }
 
       const token = await this.getExpoPushToken();
       
       if (token) {
+        console.log('💾 Saving push token to user profile...');
+        
         // Save token to user profile
-        await supabase
+        const { error } = await supabase
           .from('profiles')
           .update({ push_token: token })
           .eq('id', userId);
+
+        if (error) {
+          console.error('❌ Error saving push token:', error);
+          throw error;
+        }
+
+        console.log('✅ Push token saved successfully');
+
+        // Create or update notification settings with push notifications enabled
+        const { error: settingsError } = await supabase
+          .from('notification_settings')
+          .upsert({
+            user_id: userId,
+            push_notifications: true,
+            booking_requests: true,
+            booking_confirmations: true,
+            session_reminders: true,
+            cancellations: true,
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (settingsError) {
+          console.error('❌ Error updating notification settings:', settingsError);
+        } else {
+          console.log('✅ Notification settings updated');
+        }
+      } else {
+        console.warn('❌ Failed to get push token');
       }
     } catch (error) {
-      console.error('Error registering for push notifications:', error);
+      console.error('❌ Error registering for push notifications:', error);
       throw error;
     }
   }
@@ -112,15 +173,50 @@ class NotificationService {
       return;
     }
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data,
+          sound: 'notifications.mp3',
+        },
+        trigger: null, // Show immediately
+      });
+      console.log('✅ Local notification sent:', title);
+    } catch (error) {
+      console.error('❌ Error sending local notification:', error);
+    }
+  }
+
+  async createInAppNotification(
+    userId: string,
+    title: string,
+    message: string,
+    type: string,
+    data?: any
+  ): Promise<void> {
+    try {
+      console.log('📱 Creating in-app notification:', { userId, title, type });
+      
+      const { error } = await supabase.from('notifications').insert({
+        user_id: userId,
         title,
-        body,
-        data,
-        sound: 'notifications.mp3', // Use custom sound
-      },
-      trigger: null, // Show immediately
-    });
+        message,
+        type,
+        data: data || null,
+      });
+
+      if (error) {
+        console.error('❌ Error creating in-app notification:', error);
+        throw error;
+      }
+
+      console.log('✅ In-app notification created successfully');
+    } catch (error) {
+      console.error('❌ Error in createInAppNotification:', error);
+      throw error;
+    }
   }
 
   async scheduleSessionReminder(
@@ -252,12 +348,9 @@ class NotificationService {
       });
 
       // Always create in-app notification
-      await supabase.from('notifications').insert({
-        user_id: trainerId,
-        title,
-        message,
-        type: 'booking_request',
-        data: { clientName, sessionTime }
+      await this.createInAppNotification(trainerId, title, message, 'booking_request', {
+        clientName,
+        sessionTime
       });
 
       // Send push notification if token exists (be more lenient with settings)
@@ -323,12 +416,11 @@ class NotificationService {
       });
 
       // Always create in-app notification
-      await supabase.from('notifications').insert({
-        user_id: clientId,
-        title,
-        message: body,
-        type: status === 'accepted' ? 'booking_confirmed' : 'booking_cancelled',
-        data: { trainerName, sessionTime, status }
+      await this.createInAppNotification(clientId, title, body, 
+        status === 'accepted' ? 'booking_confirmed' : 'booking_cancelled', {
+        trainerName,
+        sessionTime,
+        status
       });
 
       // Send push notification if token exists (be more lenient with settings)
@@ -407,27 +499,36 @@ class NotificationService {
     clientId: string,
     trainerName: string,
     amount: number,
+    description: string,
     paymentId: string
   ): Promise<void> {
     try {
-      // Get client's push token and notification settings
+      console.log('💰 Sending payment request notification to client:', clientId);
+
+      // Get client's push token
       const { data: clientProfile } = await supabase
         .from('profiles')
-        .select('push_token')
+        .select('push_token, name')
         .eq('id', clientId)
         .single();
 
-      const { data: settings } = await supabase
-        .from('notification_settings')
-        .select('*')
-        .eq('user_id', clientId)
-        .single();
+      const title = 'Payment Request';
+      const message = `${trainerName} sent you a payment request for $${amount} - ${description}`;
 
-      if (clientProfile?.push_token && settings?.push_notifications) {
+      // Always create in-app notification
+      await this.createInAppNotification(clientId, title, message, 'payment_request', {
+        trainerName,
+        amount: amount.toString(),
+        description,
+        paymentId
+      });
+
+      // Send push notification if token exists
+      if (clientProfile?.push_token) {
         await this.sendPushNotification(
           clientProfile.push_token,
-          'Payment Request',
-          `${trainerName} sent you a payment request for $${amount}`,
+          title,
+          message,
           {
             type: 'payment_request',
             trainerName,
@@ -436,8 +537,10 @@ class NotificationService {
           }
         );
       }
+
+      console.log('✅ Payment request notification sent successfully');
     } catch (error) {
-      console.error('Error sending payment request notification:', error);
+      console.error('❌ Error sending payment request notification:', error);
     }
   }
 
@@ -448,24 +551,31 @@ class NotificationService {
     paymentId: string
   ): Promise<void> {
     try {
-      // Get trainer's push token and notification settings
+      console.log('💰 Sending payment confirmation notification to trainer:', trainerId);
+
+      // Get trainer's push token
       const { data: trainerProfile } = await supabase
         .from('profiles')
-        .select('push_token')
+        .select('push_token, name')
         .eq('id', trainerId)
         .single();
 
-      const { data: settings } = await supabase
-        .from('notification_settings')
-        .select('*')
-        .eq('user_id', trainerId)
-        .single();
+      const title = 'Payment Received';
+      const message = `${clientName} marked payment of $${amount} as paid`;
 
-      if (trainerProfile?.push_token && settings?.push_notifications) {
+      // Always create in-app notification
+      await this.createInAppNotification(trainerId, title, message, 'payment_confirmation', {
+        clientName,
+        amount: amount.toString(),
+        paymentId
+      });
+
+      // Send push notification if token exists
+      if (trainerProfile?.push_token) {
         await this.sendPushNotification(
           trainerProfile.push_token,
-          'Payment Received',
-          `${clientName} marked payment of $${amount} as paid`,
+          title,
+          message,
           {
             type: 'payment_confirmation',
             clientName,
@@ -474,8 +584,10 @@ class NotificationService {
           }
         );
       }
+
+      console.log('✅ Payment confirmation notification sent successfully');
     } catch (error) {
-      console.error('Error sending payment confirmation notification:', error);
+      console.error('❌ Error sending payment confirmation notification:', error);
     }
   }
 
@@ -511,14 +623,14 @@ class NotificationService {
       }
 
       // Create in-app notification
-      await supabase.from('notifications').insert({
-        user_id: trainerId,
-        title: 'New Client Request',
-        message: clientMessage 
+      await this.createInAppNotification(trainerId, 'New Client Request', 
+        clientMessage 
           ? `${clientName} wants to be your client: "${clientMessage}"`
           : `${clientName} wants to be your client`,
-        type: 'connection_request',
-        data: { relationshipId, clientName }
+        'connection_request', {
+        relationshipId,
+        clientName,
+        clientMessage
       });
     } catch (error) {
       console.error('Error sending connection request notification:', error);
@@ -557,14 +669,14 @@ class NotificationService {
       }
 
       // Create in-app notification
-      await supabase.from('notifications').insert({
-        user_id: clientId,
-        title: 'New Trainer Connection',
-        message: trainerMessage 
+      await this.createInAppNotification(clientId, 'New Trainer Connection',
+        trainerMessage 
           ? `${trainerName} added you as their client: "${trainerMessage}"`
           : `${trainerName} has added you as their client`,
-        type: 'connection_request',
-        data: { relationshipId, trainerName }
+        'connection_request', {
+        relationshipId,
+        trainerName,
+        trainerMessage
       });
     } catch (error) {
       console.error('Error sending trainer connection notification:', error);
@@ -610,8 +722,8 @@ class NotificationService {
       }
 
       // Create in-app notification
-      const title = status === 'approved' ? 'Client Accepted!' : 'Client Declined';
-      const message = status === 'approved'
+      const inAppTitle = status === 'approved' ? 'Client Accepted!' : 'Client Declined';
+      const inAppMessage = status === 'approved'
         ? clientResponse 
           ? `${clientName} accepted your invitation: "${clientResponse}"`
           : `${clientName} accepted your trainer invitation!`
@@ -619,12 +731,11 @@ class NotificationService {
           ? `${clientName} declined your invitation: "${clientResponse}"`
           : `${clientName} declined your trainer invitation`;
 
-      await supabase.from('notifications').insert({
-        user_id: trainerId,
-        title,
-        message,
-        type: 'connection_response',
-        data: { relationshipId, clientName, status }
+      await this.createInAppNotification(trainerId, inAppTitle, inAppMessage, 'connection_response', {
+        relationshipId,
+        clientName,
+        status,
+        clientResponse
       });
     } catch (error) {
       console.error('Error sending client response notification:', error);
@@ -666,12 +777,12 @@ class NotificationService {
       }
 
       // Create in-app notification
-      await supabase.from('notifications').insert({
-        user_id: clientId,
-        title: 'New Custom Package',
-        message: `${trainerName} created a custom package for you: ${packageName}`,
-        type: 'custom_package',
-        data: { packageId, trainerName, packageName }
+      await this.createInAppNotification(clientId, 'New Custom Package',
+        `${trainerName} created a custom package for you: ${packageName}`,
+        'custom_package', {
+        packageId,
+        trainerName,
+        packageName
       });
     } catch (error) {
       console.error('Error sending custom package notification:', error);
@@ -718,15 +829,14 @@ class NotificationService {
       }
 
       // Create in-app notification
-      const title = status === 'accepted' ? 'Package Accepted!' : 'Package Declined';
-      const message = `${clientName} ${status} your package: ${packageName}`;
+      const inAppTitle = status === 'accepted' ? 'Package Accepted!' : 'Package Declined';
+      const inAppMessage = `${clientName} ${status} your package: ${packageName}`;
 
-      await supabase.from('notifications').insert({
-        user_id: trainerId,
-        title,
-        message,
-        type: 'package_response',
-        data: { packageId, clientName, packageName, status }
+      await this.createInAppNotification(trainerId, inAppTitle, inAppMessage, 'package_response', {
+        packageId,
+        clientName,
+        packageName,
+        status
       });
     } catch (error) {
       console.error('Error sending package response notification:', error);
@@ -806,6 +916,42 @@ class NotificationService {
       );
     } catch (error) {
       console.error('Error testing notification sound:', error);
+    }
+  }
+
+  // Test notification method
+  async testNotification(userId: string): Promise<void> {
+    try {
+      console.log('🧪 Testing notification system for user:', userId);
+      
+      // Test in-app notification
+      await this.createInAppNotification(
+        userId,
+        'Test Notification',
+        'This is a test notification to verify the system is working',
+        'booking_request',
+        { test: true }
+      );
+
+      // Test push notification if token exists
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('push_token, name')
+        .eq('id', userId)
+        .single();
+
+      if (profile?.push_token) {
+        await this.sendPushNotification(
+          profile.push_token,
+          'Test Push Notification',
+          'This is a test push notification from GYM app',
+          { type: 'booking_request' }
+        );
+      }
+
+      console.log('✅ Test notification sent successfully');
+    } catch (error) {
+      console.error('❌ Error testing notification:', error);
     }
   }
 
